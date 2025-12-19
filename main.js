@@ -7062,7 +7062,7 @@ var TerminalView = class extends import_obsidian.ItemView {
     const shell = process.env.SHELL || "/bin/bash";
     const adapter = this.app.vault.adapter;
     const vaultPath = adapter.basePath || "";
-    const ptyPath = path.join(vaultPath, ".obsidian", "plugins", "claude-sidebar", "terminal_pty.py");
+    const ptyPath = path.join(vaultPath, ".obsidian", "plugins", this.plugin.manifest.id, "terminal_pty.py");
     const cols = this.term?.cols || 80;
     const rows = this.term?.rows || 24;
     let cmd;
