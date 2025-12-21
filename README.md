@@ -18,6 +18,15 @@ Run [Claude Code](https://claude.com/claude-code) in your Obsidian sidebar.
 
 ## Installation
 
+### Quick Install (curl)
+
+In your vault folder, run:
+```bash
+curl -sL https://github.com/derek-larson14/obsidian-claude-sidebar/archive/refs/heads/main.tar.gz | tar -xz -C .obsidian/plugins && mv .obsidian/plugins/obsidian-claude-sidebar-main .obsidian/plugins/claude-sidebar
+```
+
+Then in Obsidian: Settings → Community Plugins → Refresh → Enable "Claude Sidebar"
+
 ### Manual Installation
 
 1. Download `main.js`, `manifest.json`, `styles.css`, and `terminal_pty.py` from the [latest release](https://github.com/derek-larson14/obsidian-claude-sidebar/releases)
