@@ -6704,6 +6704,7 @@ var import_addon_fit = __toESM(require_addon_fit());
 var import_child_process = require("child_process");
 var path = __toESM(require("path"));
 var fs = __toESM(require("fs"));
+var { StringDecoder } = require("string_decoder");
 var VIEW_TYPE = "vault-terminal";
 var TerminalView = class extends import_obsidian.ItemView {
   constructor(leaf, plugin) {
@@ -6716,6 +6717,15 @@ var TerminalView = class extends import_obsidian.ItemView {
     this.plugin = plugin;
     this.escapeScope = null;
     this.fitTimeout = null;
+    this.userScrolled = false;
+    this.pendingFit = false;
+    this.viewportEl = null;
+    this.viewportScrollHandler = null;
+    this.keyScrollGuardHandler = null;
+    this.focusInHandler = null;
+    this.focusOutHandler = null;
+    this.stdoutDecoder = null;
+    this.stderrDecoder = null;
   }
   getViewType() {
     return VIEW_TYPE;
@@ -7008,6 +7018,11 @@ var TerminalView = class extends import_obsidian.ItemView {
     this.fitAddon = new import_addon_fit.FitAddon();
     this.term.loadAddon(this.fitAddon);
     this.term.open(this.termHost);
+    this.term.parser?.registerCsiHandler({ final: "I" }, () => true);
+    this.term.parser?.registerCsiHandler({ final: "O" }, () => true);
+    this.setupViewportScrollTracking();
+    this.setupKeyScrollGuard();
+    this.setupFocusTracking();
     this.term.attachCustomKeyEventHandler((ev) => {
       if (ev.type === 'keydown') {
         // Cmd+Arrow: readline shortcuts for line navigation
@@ -7036,29 +7051,142 @@ var TerminalView = class extends import_obsidian.ItemView {
         this.proc.stdin?.write(data);
       }
     });
-    this.fit();
+    this.waitForHostReady().then(() => {
+      this.fit();
+      setTimeout(() => this.fit(), 50);
+    });
     this.resizeObserver = new ResizeObserver(() => this.debouncedFit());
     this.resizeObserver.observe(this.termHost);
     // Watch for theme changes
     this.themeObserver = new MutationObserver(() => this.updateTheme());
     this.themeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    // Watch for Obsidian layout changes (sidebar resize, etc.)
+    this.registerEvent(this.app.workspace.onLayoutChange(() => this.debouncedFit()));
   }
   fit() {
     if (!this.term || !this.fitAddon)
       return;
+    // Skip fit while user is scrolling to prevent jumps
+    if (this.userScrolled && !this.pendingFit) {
+      this.pendingFit = true;
+      return;
+    }
+    this.pendingFit = false;
     try {
       this.fitAddon.fit();
+      // Force refresh to avoid stale canvas gaps
+      this.term.refresh(0, this.term.rows - 1);
+      this.maybeAutoScroll();
     } catch (e) {
     }
   }
-  debouncedFit() {
+  debouncedFit(force = false) {
     if (this.fitTimeout) {
       clearTimeout(this.fitTimeout);
     }
     this.fitTimeout = setTimeout(() => {
-      this.fit();
+      if (force) {
+        // Temporarily override userScrolled for forced fits
+        const prev = this.userScrolled;
+        this.userScrolled = false;
+        this.fit();
+        this.userScrolled = prev;
+      } else {
+        this.fit();
+      }
       this.fitTimeout = null;
     }, 50);
+  }
+  setupViewportScrollTracking() {
+    if (!this.term?.element)
+      return;
+    this.viewportEl = this.term.element.querySelector(".xterm-viewport");
+    if (!this.viewportEl)
+      return;
+    this.viewportScrollHandler = () => {
+      this.updateScrollState();
+    };
+    this.viewportEl.addEventListener("scroll", this.viewportScrollHandler, { passive: true });
+    this.term.onScroll(() => this.updateScrollState());
+  }
+  setupKeyScrollGuard() {
+    if (!this.viewportEl)
+      return;
+    // Guard arrow keys and number keys used for Claude Code choice navigation
+    const guardKeys = new Set([
+      "ArrowUp", "ArrowDown",
+      "1", "2", "3", "4", "5", "6", "7", "8", "9", "0"
+    ]);
+    this.keyScrollGuardHandler = (ev) => {
+      if (!guardKeys.has(ev.key))
+        return;
+      if (!this.isTerminalActive())
+        return;
+      // Preserve scroll position via requestAnimationFrame
+      const top = this.viewportEl.scrollTop;
+      const left = this.viewportEl.scrollLeft;
+      requestAnimationFrame(() => {
+        this.viewportEl.scrollTop = top;
+        this.viewportEl.scrollLeft = left;
+      });
+      // Suppress auto-scroll while user is navigating choices
+      this.userScrolled = true;
+    };
+    this.viewportEl.addEventListener("keydown", this.keyScrollGuardHandler);
+    // Also attach to textarea for key events
+    if (this.term?.textarea) {
+      this.term.textarea.addEventListener("keydown", this.keyScrollGuardHandler);
+    }
+  }
+  setupFocusTracking() {
+    if (!this.termHost)
+      return;
+    this.focusInHandler = () => {
+      this.updateScrollState();
+    };
+    this.focusOutHandler = () => {
+      if (this.pendingFit && !this.userScrolled) {
+        this.fit();
+        this.pendingFit = false;
+      }
+    };
+    this.termHost.addEventListener("focusin", this.focusInHandler);
+    this.termHost.addEventListener("focusout", this.focusOutHandler);
+  }
+  updateScrollState() {
+    this.userScrolled = !this.isAtBottom();
+    if (!this.userScrolled && this.pendingFit) {
+      this.fit();
+      this.pendingFit = false;
+    }
+  }
+  isAtBottom() {
+    const buffer = this.term?.buffer?.active;
+    if (!buffer)
+      return true;
+    return buffer.ydisp >= buffer.ybase;
+  }
+  maybeAutoScroll() {
+    if (!this.term)
+      return;
+    if (this.userScrolled || !this.isTerminalActive())
+      return;
+    this.term.scrollToBottom();
+  }
+  isTerminalActive() {
+    return this.containerEl.contains(document.activeElement);
+  }
+  async waitForHostReady() {
+    if (!this.fitAddon)
+      return false;
+    for (let i = 0; i < 10; i++) {
+      const dim = this.fitAddon.proposeDimensions();
+      if (dim && dim.cols > 0 && dim.rows > 0) {
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return false;
   }
   startShell() {
     this.stopShell();
@@ -7089,11 +7217,15 @@ var TerminalView = class extends import_obsidian.ItemView {
       env: { ...process.env, TERM: "xterm-256color" },
       stdio: ["pipe", "pipe", "pipe"]
     });
+    // Use StringDecoder to properly handle UTF-8 boundaries across chunks
+    // This prevents replacement characters when multi-byte chars are split
+    this.stdoutDecoder = new StringDecoder("utf8");
+    this.stderrDecoder = new StringDecoder("utf8");
     this.proc.stdout?.on("data", (data) => {
-      this.term?.write(data.toString());
+      this.term?.write(this.stdoutDecoder.write(data));
     });
     this.proc.stderr?.on("data", (data) => {
-      this.term?.write(data.toString());
+      this.term?.write(this.stderrDecoder.write(data));
     });
     this.proc.on("exit", (code, signal) => {
       this.term?.writeln(`\r
@@ -7126,6 +7258,17 @@ var TerminalView = class extends import_obsidian.ItemView {
       this.proc.kill("SIGTERM");
       this.proc = null;
     }
+    // Flush any remaining buffered bytes from decoders
+    if (this.stdoutDecoder) {
+      const remaining = this.stdoutDecoder.end();
+      if (remaining) this.term?.write(remaining);
+      this.stdoutDecoder = null;
+    }
+    if (this.stderrDecoder) {
+      const remaining = this.stderrDecoder.end();
+      if (remaining) this.term?.write(remaining);
+      this.stderrDecoder = null;
+    }
   }
   dispose() {
     this.resizeObserver?.disconnect();
@@ -7133,6 +7276,19 @@ var TerminalView = class extends import_obsidian.ItemView {
     if (this.fitTimeout) {
       clearTimeout(this.fitTimeout);
       this.fitTimeout = null;
+    }
+    if (this.viewportEl && this.viewportScrollHandler) {
+      this.viewportEl.removeEventListener("scroll", this.viewportScrollHandler);
+    }
+    if (this.keyScrollGuardHandler) {
+      this.viewportEl?.removeEventListener("keydown", this.keyScrollGuardHandler);
+      this.term?.textarea?.removeEventListener("keydown", this.keyScrollGuardHandler);
+    }
+    if (this.termHost && this.focusInHandler) {
+      this.termHost.removeEventListener("focusin", this.focusInHandler);
+    }
+    if (this.termHost && this.focusOutHandler) {
+      this.termHost.removeEventListener("focusout", this.focusOutHandler);
     }
     if (this.escapeScope) {
       this.app.keymap.popScope(this.escapeScope);
