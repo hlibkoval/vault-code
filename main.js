@@ -6704,6 +6704,7 @@ var import_addon_fit = __toESM(require_addon_fit());
 var import_child_process = require("child_process");
 var path = __toESM(require("path"));
 var fs = __toESM(require("fs"));
+var { StringDecoder } = require("string_decoder");
 var VIEW_TYPE = "vault-terminal";
 var TerminalView = class extends import_obsidian.ItemView {
   constructor(leaf, plugin) {
@@ -6716,6 +6717,15 @@ var TerminalView = class extends import_obsidian.ItemView {
     this.plugin = plugin;
     this.escapeScope = null;
     this.fitTimeout = null;
+    this.userScrolled = false;
+    this.pendingFit = false;
+    this.viewportEl = null;
+    this.viewportScrollHandler = null;
+    this.keyScrollGuardHandler = null;
+    this.focusInHandler = null;
+    this.focusOutHandler = null;
+    this.stdoutDecoder = null;
+    this.stderrDecoder = null;
   }
   getViewType() {
     return VIEW_TYPE;
@@ -7008,6 +7018,11 @@ var TerminalView = class extends import_obsidian.ItemView {
     this.fitAddon = new import_addon_fit.FitAddon();
     this.term.loadAddon(this.fitAddon);
     this.term.open(this.termHost);
+    this.term.parser?.registerCsiHandler({ final: "I" }, () => true);
+    this.term.parser?.registerCsiHandler({ final: "O" }, () => true);
+    this.setupViewportScrollTracking();
+    this.setupKeyScrollGuard();
+    this.setupFocusTracking();
     this.term.attachCustomKeyEventHandler((ev) => {
       if (ev.type === 'keydown') {
         // Cmd+Arrow: readline shortcuts for line navigation
@@ -7036,29 +7051,142 @@ var TerminalView = class extends import_obsidian.ItemView {
         this.proc.stdin?.write(data);
       }
     });
-    this.fit();
+    this.waitForHostReady().then(() => {
+      this.fit();
+      setTimeout(() => this.fit(), 50);
+    });
     this.resizeObserver = new ResizeObserver(() => this.debouncedFit());
     this.resizeObserver.observe(this.termHost);
     // Watch for theme changes
     this.themeObserver = new MutationObserver(() => this.updateTheme());
     this.themeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    // Watch for Obsidian layout changes (sidebar resize, etc.)
+    this.registerEvent(this.app.workspace.onLayoutChange(() => this.debouncedFit()));
   }
   fit() {
     if (!this.term || !this.fitAddon)
       return;
+    // Skip fit while user is scrolling to prevent jumps
+    if (this.userScrolled && !this.pendingFit) {
+      this.pendingFit = true;
+      return;
+    }
+    this.pendingFit = false;
     try {
       this.fitAddon.fit();
+      // Force refresh to avoid stale canvas gaps
+      this.term.refresh(0, this.term.rows - 1);
+      this.maybeAutoScroll();
     } catch (e) {
     }
   }
-  debouncedFit() {
+  debouncedFit(force = false) {
     if (this.fitTimeout) {
       clearTimeout(this.fitTimeout);
     }
     this.fitTimeout = setTimeout(() => {
-      this.fit();
+      if (force) {
+        // Temporarily override userScrolled for forced fits
+        const prev = this.userScrolled;
+        this.userScrolled = false;
+        this.fit();
+        this.userScrolled = prev;
+      } else {
+        this.fit();
+      }
       this.fitTimeout = null;
     }, 50);
+  }
+  setupViewportScrollTracking() {
+    if (!this.term?.element)
+      return;
+    this.viewportEl = this.term.element.querySelector(".xterm-viewport");
+    if (!this.viewportEl)
+      return;
+    this.viewportScrollHandler = () => {
+      this.updateScrollState();
+    };
+    this.viewportEl.addEventListener("scroll", this.viewportScrollHandler, { passive: true });
+    this.term.onScroll(() => this.updateScrollState());
+  }
+  setupKeyScrollGuard() {
+    if (!this.viewportEl)
+      return;
+    // Guard arrow keys and number keys used for Claude Code choice navigation
+    const guardKeys = new Set([
+      "ArrowUp", "ArrowDown",
+      "1", "2", "3", "4", "5", "6", "7", "8", "9", "0"
+    ]);
+    this.keyScrollGuardHandler = (ev) => {
+      if (!guardKeys.has(ev.key))
+        return;
+      if (!this.isTerminalActive())
+        return;
+      // Preserve scroll position via requestAnimationFrame
+      const top = this.viewportEl.scrollTop;
+      const left = this.viewportEl.scrollLeft;
+      requestAnimationFrame(() => {
+        this.viewportEl.scrollTop = top;
+        this.viewportEl.scrollLeft = left;
+      });
+      // Suppress auto-scroll while user is navigating choices
+      this.userScrolled = true;
+    };
+    this.viewportEl.addEventListener("keydown", this.keyScrollGuardHandler);
+    // Also attach to textarea for key events
+    if (this.term?.textarea) {
+      this.term.textarea.addEventListener("keydown", this.keyScrollGuardHandler);
+    }
+  }
+  setupFocusTracking() {
+    if (!this.termHost)
+      return;
+    this.focusInHandler = () => {
+      this.updateScrollState();
+    };
+    this.focusOutHandler = () => {
+      if (this.pendingFit && !this.userScrolled) {
+        this.fit();
+        this.pendingFit = false;
+      }
+    };
+    this.termHost.addEventListener("focusin", this.focusInHandler);
+    this.termHost.addEventListener("focusout", this.focusOutHandler);
+  }
+  updateScrollState() {
+    this.userScrolled = !this.isAtBottom();
+    if (!this.userScrolled && this.pendingFit) {
+      this.fit();
+      this.pendingFit = false;
+    }
+  }
+  isAtBottom() {
+    const buffer = this.term?.buffer?.active;
+    if (!buffer)
+      return true;
+    return buffer.ydisp >= buffer.ybase;
+  }
+  maybeAutoScroll() {
+    if (!this.term)
+      return;
+    if (this.userScrolled || !this.isTerminalActive())
+      return;
+    this.term.scrollToBottom();
+  }
+  isTerminalActive() {
+    return this.containerEl.contains(document.activeElement);
+  }
+  async waitForHostReady() {
+    if (!this.fitAddon)
+      return false;
+    for (let i = 0; i < 10; i++) {
+      const dim = this.fitAddon.proposeDimensions();
+      if (dim && dim.cols > 0 && dim.rows > 0) {
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return false;
   }
   startShell() {
     this.stopShell();
@@ -7075,7 +7203,7 @@ var TerminalView = class extends import_obsidian.ItemView {
     const rows = this.term?.rows || 24;
     // PTY script embedded as base64 for Obsidian plugin directory compatibility
     // See terminal_pty.py for readable source. Rebuild with: ./build.sh
-    const PTY_SCRIPT_B64 = "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwoiIiJQVFkgd3JhcHBlciB3aXRoIHJlc2l6ZSBzdXBwb3J0IGZvciBPYnNpZGlhbiB0ZXJtaW5hbCBwbHVnaW4uIiIiCmltcG9ydCBvcwppbXBvcnQgc3lzCmltcG9ydCBwdHkKaW1wb3J0IHN0cnVjdAppbXBvcnQgZmNudGwKaW1wb3J0IHRlcm1pb3MKaW1wb3J0IHNlbGVjdAppbXBvcnQgc2lnbmFsCgpkZWYgc2V0X3NpemUoZmQsIGNvbHMsIHJvd3MpOgogICAgIiIiU2V0IHRoZSBQVFkgd2luZG93IHNpemUuIiIiCiAgICB3aW5zaXplID0gc3RydWN0LnBhY2soJ0hISEgnLCByb3dzLCBjb2xzLCAwLCAwKQogICAgZmNudGwuaW9jdGwoZmQsIHRlcm1pb3MuVElPQ1NXSU5TWiwgd2luc2l6ZSkKCmRlZiBtYWluKCk6CiAgICAjIFBhcnNlIGFyZ3M6IHRlcm1pbmFsX3B0eS5weSBbY29sc10gW3Jvd3NdIFtzaGVsbF0gW3NoZWxsX2FyZ3MuLi5dCiAgICBpZiBsZW4oc3lzLmFyZ3YpIDwgNDoKICAgICAgICBwcmludChmIlVzYWdlOiB7c3lzLmFyZ3ZbMF19IGNvbHMgcm93cyBzaGVsbCBbYXJncy4uLl0iLCBmaWxlPXN5cy5zdGRlcnIpCiAgICAgICAgc3lzLmV4aXQoMSkKCiAgICBjb2xzID0gaW50KHN5cy5hcmd2WzFdKQogICAgcm93cyA9IGludChzeXMuYXJndlsyXSkKICAgIHNoZWxsID0gc3lzLmFyZ3ZbM10KICAgIHNoZWxsX2FyZ3MgPSBzeXMuYXJndlszOl0gICMgSW5jbHVkZSBzaGVsbCBhcyBhcmd2WzBdCgogICAgcGlkLCBmZCA9IHB0eS5mb3JrKCkKCiAgICBpZiBwaWQgPT0gMDoKICAgICAgICAjIENoaWxkIHByb2Nlc3MgLSBleGVjIHRoZSBzaGVsbAogICAgICAgIG9zLmV4ZWN2cChzaGVsbCwgc2hlbGxfYXJncykKICAgICAgICBzeXMuZXhpdCgxKQoKICAgICMgUGFyZW50IHByb2Nlc3MKICAgICMgU2V0IGluaXRpYWwgc2l6ZQogICAgc2V0X3NpemUoZmQsIGNvbHMsIHJvd3MpCgogICAgc3RkaW5fZmQgPSBzeXMuc3RkaW4uZmlsZW5vKCkKCiAgICAjIE1ha2Ugc3RkaW4gbm9uLWJsb2NraW5nCiAgICBvbGRfZmxhZ3MgPSBmY250bC5mY250bChzdGRpbl9mZCwgZmNudGwuRl9HRVRGTCkKICAgIGZjbnRsLmZjbnRsKHN0ZGluX2ZkLCBmY250bC5GX1NFVEZMLCBvbGRfZmxhZ3MgfCBvcy5PX05PTkJMT0NLKQoKICAgIHJ1bm5pbmcgPSBUcnVlCiAgICB0cnk6CiAgICAgICAgd2hpbGUgcnVubmluZzoKICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgcmxpc3QsIF8sIF8gPSBzZWxlY3Quc2VsZWN0KFtmZCwgc3RkaW5fZmRdLCBbXSwgW10sIDAuMDUpCiAgICAgICAgICAgIGV4Y2VwdCBzZWxlY3QuZXJyb3I6CiAgICAgICAgICAgICAgICBicmVhawoKICAgICAgICAgICAgZm9yIHJlYWR5X2ZkIGluIHJsaXN0OgogICAgICAgICAgICAgICAgaWYgcmVhZHlfZmQgPT0gZmQ6CiAgICAgICAgICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgICAgICAgICBkYXRhID0gb3MucmVhZChmZCwgMTYzODQpCiAgICAgICAgICAgICAgICAgICAgICAgIGlmIG5vdCBkYXRhOgogICAgICAgICAgICAgICAgICAgICAgICAgICAgcnVubmluZyA9IEZhbHNlCiAgICAgICAgICAgICAgICAgICAgICAgICAgICBicmVhawogICAgICAgICAgICAgICAgICAgICAgICBvcy53cml0ZShzeXMuc3Rkb3V0LmZpbGVubygpLCBkYXRhKQogICAgICAgICAgICAgICAgICAgICAgICBzeXMuc3Rkb3V0LmZsdXNoKCkKICAgICAgICAgICAgICAgICAgICBleGNlcHQgT1NFcnJvcjoKICAgICAgICAgICAgICAgICAgICAgICAgcnVubmluZyA9IEZhbHNlCiAgICAgICAgICAgICAgICAgICAgICAgIGJyZWFrCiAgICAgICAgICAgICAgICBlbGlmIHJlYWR5X2ZkID09IHN0ZGluX2ZkOgogICAgICAgICAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgICAgICAgICAgZGF0YSA9IG9zLnJlYWQoc3RkaW5fZmQsIDE2Mzg0KQogICAgICAgICAgICAgICAgICAgICAgICBpZiBkYXRhOgogICAgICAgICAgICAgICAgICAgICAgICAgICAgIyBDaGVjayBmb3IgcmVzaXplIGVzY2FwZSBzZXF1ZW5jZSBhbnl3aGVyZSBpbiBkYXRhOiBceDFiXVJFU0laRTtjb2xzO3Jvd3NceDA3CiAgICAgICAgICAgICAgICAgICAgICAgICAgICB3aGlsZSBiJ1x4MWJdUkVTSVpFOycgaW4gZGF0YToKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBzdGFydCA9IGRhdGEuaW5kZXgoYidceDFiXVJFU0laRTsnKQogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgZW5kID0gZGF0YS5pbmRleChiJ1x4MDcnLCBzdGFydCkKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgcmVzaXplX2RhdGEgPSBkYXRhW3N0YXJ0Kzk6ZW5kXS5kZWNvZGUoKQogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBjLCByID0gcmVzaXplX2RhdGEuc3BsaXQoJzsnKQogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBzZXRfc2l6ZShmZCwgaW50KGMpLCBpbnQocikpCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICMgUmVtb3ZlIHRoZSByZXNpemUgY29tbWFuZCBmcm9tIGRhdGEKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgZGF0YSA9IGRhdGFbOnN0YXJ0XSArIGRhdGFbZW5kKzE6XQogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGV4Y2VwdCAoVmFsdWVFcnJvciwgSW5kZXhFcnJvcik6CiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGJyZWFrCiAgICAgICAgICAgICAgICAgICAgICAgICAgICBpZiBkYXRhOgogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIG9zLndyaXRlKGZkLCBkYXRhKQogICAgICAgICAgICAgICAgICAgIGV4Y2VwdCBPU0Vycm9yOgogICAgICAgICAgICAgICAgICAgICAgICBwYXNzCgogICAgICAgICAgICAjIENoZWNrIGlmIGNoaWxkIGV4aXRlZAogICAgICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICB3cGlkLCBzdGF0dXMgPSBvcy53YWl0cGlkKHBpZCwgb3MuV05PSEFORykKICAgICAgICAgICAgICAgIGlmIHdwaWQgPT0gcGlkOgogICAgICAgICAgICAgICAgICAgIHN5cy5leGl0KG9zLndhaXRzdGF0dXNfdG9fZXhpdGNvZGUoc3RhdHVzKSkKICAgICAgICAgICAgZXhjZXB0IENoaWxkUHJvY2Vzc0Vycm9yOgogICAgICAgICAgICAgICAgYnJlYWsKICAgIGZpbmFsbHk6CiAgICAgICAgZmNudGwuZmNudGwoc3RkaW5fZmQsIGZjbnRsLkZfU0VURkwsIG9sZF9mbGFncykKCmlmIF9fbmFtZV9fID09ICdfX21haW5fXyc6CiAgICBtYWluKCkK";
+    const PTY_SCRIPT_B64 = "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwoiIiJQVFkgd3JhcHBlciB3aXRoIHJlc2l6ZSBzdXBwb3J0IGZvciBPYnNpZGlhbiB0ZXJtaW5hbCBwbHVnaW4uIiIiCmltcG9ydCBvcwppbXBvcnQgc3lzCmltcG9ydCBwdHkKaW1wb3J0IHN0cnVjdAppbXBvcnQgZmNudGwKaW1wb3J0IHRlcm1pb3MKaW1wb3J0IHNlbGVjdAppbXBvcnQgc2lnbmFsCgpkZWYgc2V0X3NpemUoZmQsIGNvbHMsIHJvd3MpOgogICAgIiIiU2V0IHRoZSBQVFkgd2luZG93IHNpemUuIiIiCiAgICB3aW5zaXplID0gc3RydWN0LnBhY2soJ0hISEgnLCByb3dzLCBjb2xzLCAwLCAwKQogICAgZmNudGwuaW9jdGwoZmQsIHRlcm1pb3MuVElPQ1NXSU5TWiwgd2luc2l6ZSkKCmRlZiBtYWluKCk6CiAgICAjIFBhcnNlIGFyZ3M6IHRlcm1pbmFsX3B0eS5weSBbY29sc10gW3Jvd3NdIFtzaGVsbF0gW3NoZWxsX2FyZ3MuLi5dCiAgICBpZiBsZW4oc3lzLmFyZ3YpIDwgNDoKICAgICAgICBwcmludChmIlVzYWdlOiB7c3lzLmFyZ3ZbMF19IGNvbHMgcm93cyBzaGVsbCBbYXJncy4uLl0iLCBmaWxlPXN5cy5zdGRlcnIpCiAgICAgICAgc3lzLmV4aXQoMSkKCiAgICBjb2xzID0gaW50KHN5cy5hcmd2WzFdKQogICAgcm93cyA9IGludChzeXMuYXJndlsyXSkKICAgIHNoZWxsID0gc3lzLmFyZ3ZbM10KICAgIHNoZWxsX2FyZ3MgPSBzeXMuYXJndlszOl0gICMgSW5jbHVkZSBzaGVsbCBhcyBhcmd2WzBdCgogICAgcGlkLCBmZCA9IHB0eS5mb3JrKCkKCiAgICBpZiBwaWQgPT0gMDoKICAgICAgICAjIENoaWxkIHByb2Nlc3MgLSBleGVjIHRoZSBzaGVsbAogICAgICAgIG9zLmV4ZWN2cChzaGVsbCwgc2hlbGxfYXJncykKICAgICAgICBzeXMuZXhpdCgxKQoKICAgICMgUGFyZW50IHByb2Nlc3MKICAgICMgU2V0IGluaXRpYWwgc2l6ZQogICAgc2V0X3NpemUoZmQsIGNvbHMsIHJvd3MpCgogICAgc3RkaW5fZmQgPSBzeXMuc3RkaW4uZmlsZW5vKCkKCiAgICAjIE1ha2Ugc3RkaW4gbm9uLWJsb2NraW5nCiAgICBvbGRfZmxhZ3MgPSBmY250bC5mY250bChzdGRpbl9mZCwgZmNudGwuRl9HRVRGTCkKICAgIGZjbnRsLmZjbnRsKHN0ZGluX2ZkLCBmY250bC5GX1NFVEZMLCBvbGRfZmxhZ3MgfCBvcy5PX05PTkJMT0NLKQoKICAgIHJ1bm5pbmcgPSBUcnVlCiAgICB0cnk6CiAgICAgICAgd2hpbGUgcnVubmluZzoKICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgcmxpc3QsIF8sIF8gPSBzZWxlY3Quc2VsZWN0KFtmZCwgc3RkaW5fZmRdLCBbXSwgW10sIDAuMDUpCiAgICAgICAgICAgIGV4Y2VwdCBzZWxlY3QuZXJyb3I6CiAgICAgICAgICAgICAgICBicmVhawoKICAgICAgICAgICAgZm9yIHJlYWR5X2ZkIGluIHJsaXN0OgogICAgICAgICAgICAgICAgaWYgcmVhZHlfZmQgPT0gZmQ6CiAgICAgICAgICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgICAgICAgICBkYXRhID0gb3MucmVhZChmZCwgMTYzODQpCiAgICAgICAgICAgICAgICAgICAgICAgIGlmIG5vdCBkYXRhOgogICAgICAgICAgICAgICAgICAgICAgICAgICAgcnVubmluZyA9IEZhbHNlCiAgICAgICAgICAgICAgICAgICAgICAgICAgICBicmVhawogICAgICAgICAgICAgICAgICAgICAgICBvcy53cml0ZShzeXMuc3Rkb3V0LmZpbGVubygpLCBkYXRhKQogICAgICAgICAgICAgICAgICAgICAgICBzeXMuc3Rkb3V0LmZsdXNoKCkKICAgICAgICAgICAgICAgICAgICBleGNlcHQgT1NFcnJvcjoKICAgICAgICAgICAgICAgICAgICAgICAgcnVubmluZyA9IEZhbHNlCiAgICAgICAgICAgICAgICAgICAgICAgIGJyZWFrCiAgICAgICAgICAgICAgICBlbGlmIHJlYWR5X2ZkID09IHN0ZGluX2ZkOgogICAgICAgICAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgICAgICAgICAgZGF0YSA9IG9zLnJlYWQoc3RkaW5fZmQsIDE2Mzg0KQogICAgICAgICAgICAgICAgICAgICAgICBpZiBub3QgZGF0YToKICAgICAgICAgICAgICAgICAgICAgICAgICAgICMgc3RkaW4gY2xvc2VkIC0gcGx1Z2luIHRlcm1pbmF0ZWQKICAgICAgICAgICAgICAgICAgICAgICAgICAgIHJ1bm5pbmcgPSBGYWxzZQogICAgICAgICAgICAgICAgICAgICAgICAgICAgYnJlYWsKICAgICAgICAgICAgICAgICAgICAgICAgaWYgZGF0YToKICAgICAgICAgICAgICAgICAgICAgICAgICAgICMgQ2hlY2sgZm9yIHJlc2l6ZSBlc2NhcGUgc2VxdWVuY2UgYW55d2hlcmUgaW4gZGF0YTogXHgxYl1SRVNJWkU7Y29scztyb3dzXHgwNwogICAgICAgICAgICAgICAgICAgICAgICAgICAgd2hpbGUgYidceDFiXVJFU0laRTsnIGluIGRhdGE6CiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgc3RhcnQgPSBkYXRhLmluZGV4KGInXHgxYl1SRVNJWkU7JykKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGVuZCA9IGRhdGEuaW5kZXgoYidceDA3Jywgc3RhcnQpCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHJlc2l6ZV9kYXRhID0gZGF0YVtzdGFydCs5OmVuZF0uZGVjb2RlKCkKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgYywgciA9IHJlc2l6ZV9kYXRhLnNwbGl0KCc7JykKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgc2V0X3NpemUoZmQsIGludChjKSwgaW50KHIpKQogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAjIFJlbW92ZSB0aGUgcmVzaXplIGNvbW1hbmQgZnJvbSBkYXRhCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGRhdGEgPSBkYXRhWzpzdGFydF0gKyBkYXRhW2VuZCsxOl0KICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBleGNlcHQgKFZhbHVlRXJyb3IsIEluZGV4RXJyb3IpOgogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBicmVhawogICAgICAgICAgICAgICAgICAgICAgICAgICAgaWYgZGF0YToKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBvcy53cml0ZShmZCwgZGF0YSkKICAgICAgICAgICAgICAgICAgICBleGNlcHQgT1NFcnJvcjoKICAgICAgICAgICAgICAgICAgICAgICAgcGFzcwoKICAgICAgICAgICAgIyBDaGVjayBpZiBjaGlsZCBleGl0ZWQKICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgd3BpZCwgc3RhdHVzID0gb3Mud2FpdHBpZChwaWQsIG9zLldOT0hBTkcpCiAgICAgICAgICAgICAgICBpZiB3cGlkID09IHBpZDoKICAgICAgICAgICAgICAgICAgICBzeXMuZXhpdChvcy53YWl0c3RhdHVzX3RvX2V4aXRjb2RlKHN0YXR1cykpCiAgICAgICAgICAgIGV4Y2VwdCBDaGlsZFByb2Nlc3NFcnJvcjoKICAgICAgICAgICAgICAgIGJyZWFrCiAgICBmaW5hbGx5OgogICAgICAgIGZjbnRsLmZjbnRsKHN0ZGluX2ZkLCBmY250bC5GX1NFVEZMLCBvbGRfZmxhZ3MpCgppZiBfX25hbWVfXyA9PSAnX19tYWluX18nOgogICAgbWFpbigpCg==";
     // Decode and write PTY script to temp file
     const os = require("os");
     const ptyPath = path.join(os.tmpdir(), "claude_sidebar_pty.py");
@@ -7089,11 +7217,15 @@ var TerminalView = class extends import_obsidian.ItemView {
       env: { ...process.env, TERM: "xterm-256color" },
       stdio: ["pipe", "pipe", "pipe"]
     });
+    // Use StringDecoder to properly handle UTF-8 boundaries across chunks
+    // This prevents replacement characters when multi-byte chars are split
+    this.stdoutDecoder = new StringDecoder("utf8");
+    this.stderrDecoder = new StringDecoder("utf8");
     this.proc.stdout?.on("data", (data) => {
-      this.term?.write(data.toString());
+      this.term?.write(this.stdoutDecoder.write(data));
     });
     this.proc.stderr?.on("data", (data) => {
-      this.term?.write(data.toString());
+      this.term?.write(this.stderrDecoder.write(data));
     });
     this.proc.on("exit", (code, signal) => {
       this.term?.writeln(`\r
@@ -7126,6 +7258,17 @@ var TerminalView = class extends import_obsidian.ItemView {
       this.proc.kill("SIGTERM");
       this.proc = null;
     }
+    // Flush any remaining buffered bytes from decoders
+    if (this.stdoutDecoder) {
+      const remaining = this.stdoutDecoder.end();
+      if (remaining) this.term?.write(remaining);
+      this.stdoutDecoder = null;
+    }
+    if (this.stderrDecoder) {
+      const remaining = this.stderrDecoder.end();
+      if (remaining) this.term?.write(remaining);
+      this.stderrDecoder = null;
+    }
   }
   dispose() {
     this.resizeObserver?.disconnect();
@@ -7133,6 +7276,19 @@ var TerminalView = class extends import_obsidian.ItemView {
     if (this.fitTimeout) {
       clearTimeout(this.fitTimeout);
       this.fitTimeout = null;
+    }
+    if (this.viewportEl && this.viewportScrollHandler) {
+      this.viewportEl.removeEventListener("scroll", this.viewportScrollHandler);
+    }
+    if (this.keyScrollGuardHandler) {
+      this.viewportEl?.removeEventListener("keydown", this.keyScrollGuardHandler);
+      this.term?.textarea?.removeEventListener("keydown", this.keyScrollGuardHandler);
+    }
+    if (this.termHost && this.focusInHandler) {
+      this.termHost.removeEventListener("focusin", this.focusInHandler);
+    }
+    if (this.termHost && this.focusOutHandler) {
+      this.termHost.removeEventListener("focusout", this.focusOutHandler);
     }
     if (this.escapeScope) {
       this.app.keymap.popScope(this.escapeScope);

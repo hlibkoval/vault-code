@@ -65,6 +65,10 @@ def main():
                 elif ready_fd == stdin_fd:
                     try:
                         data = os.read(stdin_fd, 16384)
+                        if not data:
+                            # stdin closed - plugin terminated
+                            running = False
+                            break
                         if data:
                             # Check for resize escape sequence anywhere in data: \x1b]RESIZE;cols;rows\x07
                             while b'\x1b]RESIZE;' in data:
