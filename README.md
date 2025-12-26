@@ -18,7 +18,7 @@ Run [Claude Code](https://claude.com/claude-code) in your Obsidian sidebar.
 
 ## Installation
 
-### Quick Install (curl)
+### Quick Install (Mac/Linux)
 
 In your vault folder, run:
 ```bash
@@ -26,6 +26,8 @@ curl -sL https://github.com/derek-larson14/obsidian-claude-sidebar/archive/refs/
 ```
 
 Then in Obsidian: Settings → Community Plugins → Refresh → Enable "Claude Sidebar"
+
+**Windows:** See [Windows Setup](#windows-setup-experimental) below.
 
 ### Manual Installation
 
