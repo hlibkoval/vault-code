@@ -10,7 +10,7 @@ Run [Claude Code](https://claude.com/claude-code) in your Obsidian sidebar.
 - **Auto-launches Claude** - Claude Code starts automatically
 - **Multiple tabs** - Run multiple Claude instances side by side
 
-<video src="demo.mp4" controls width="100%"></video>
+<video src="https://github.com/derek-larson14/obsidian-claude-sidebar/raw/main/demo.mp4" controls width="100%"></video>
 
 ## Requirements
 
