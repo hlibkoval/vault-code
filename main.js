@@ -7127,7 +7127,7 @@ var TerminalView = class extends import_obsidian.ItemView {
       try {
         const shellOutput = (0, import_child_process.execSync)(
           `${shell} -lic 'echo "__PATH__"; echo "$PATH"'`,
-          { encoding: 'utf8', timeout: 5000 }
+          { encoding: 'utf8', timeout: 2000 }
         );
         // Extract PATH from after the marker (shell integration escapes pollute early output)
         const shellPath = shellOutput.split('__PATH__\n')[1]?.trim().split('\n')[0];
