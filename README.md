@@ -2,7 +2,7 @@
 
 Run [Claude Code](https://claude.com/claude-code) in your Obsidian sidebar.
 
-![Vault Code](screenshot-obsidian.png)
+![Vault Code](docs/screenshot-obsidian.png)
 
 ## Features
 
