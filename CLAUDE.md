@@ -57,4 +57,15 @@ Vault Code is an Obsidian plugin that embeds a terminal running Claude Code in t
 
 Official documentation: https://docs.obsidian.md/Plugins/Getting+started/Build+a+plugin
 
-Alternatively, use the context7 MCP plugin to fetch up-to-date Obsidian API documentation.
+### Fetching docs via context7 MCP
+
+The docs site uses dynamic loading, so WebFetch won't work. Use context7 MCP instead:
+
+1. Resolve library ID: `mcp__context7__resolve-library-id` with `libraryName: "obsidian"`
+2. Query docs: `mcp__context7__query-docs` with `libraryId: "/websites/obsidian_md"`
+
+Example query topics:
+- "Plugin class, onload, onunload lifecycle"
+- "ItemView subclass, getViewType, getDisplayText"
+- "registerView, addRibbonIcon, addCommand"
+- "Workspace, leaf, split pane API"
