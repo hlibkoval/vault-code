@@ -137,7 +137,11 @@ export class TerminalView extends ItemView {
 		const newTheme = getThemeColors();
 		const cur = this.term.options.theme;
 		// Only update if theme actually changed
-		if (cur?.background !== newTheme.background || cur?.foreground !== newTheme.foreground) {
+		if (
+			cur?.background !== newTheme.background ||
+			cur?.foreground !== newTheme.foreground ||
+			cur?.selectionBackground !== newTheme.selectionBackground
+		) {
 			this.term.options.theme = newTheme;
 		}
 	}
