@@ -17,11 +17,19 @@ All notable changes to Vault Code will be documented in this file.
 
 ## [0.0.1] - 2025-01-08
 
+Fresh start version after forking from [derek-larson14/obsidian-claude-sidebar](https://github.com/derek-larson14/obsidian-claude-sidebar).
+
 ### Added
-- Migrated to TypeScript with official Obsidian plugin template structure
+- Embedded Nerd Font support (Symbols Nerd Font Mono) for terminal icons like git branch, folder, checkmarks
+- TypeScript migration with modular source structure in `src/`
+- npm/esbuild build toolchain with PTY script embedding plugin
+- ESLint configuration with Obsidian-specific rules (`eslint-plugin-obsidianmd`)
 - GitHub Actions CI/CD pipeline for automated builds and releases
-- ESLint configuration with Obsidian plugin rules
+- CLAUDE.md with comprehensive development documentation
 
 ### Changed
-- Reorganized repo: build configs moved to `scripts/`, media to `docs/`
-- Simplified installation via curl-based tar.gz bundle
+- Renamed plugin from "Claude Sidebar" to "Vault Code"
+- Plugin ID changed to `vault-code`
+- Reorganized repo: build configs in `scripts/`, media in `docs/`
+- Simplified installation via curl-based tar.gz bundle from GitHub releases
+- Updated attribution to reflect fork maintainer
