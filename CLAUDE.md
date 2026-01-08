@@ -135,10 +135,48 @@ scripts/
 
 ## Versioning & Releases
 
-- Bump `version` in `manifest.json` (SemVer) and update `versions.json` to map plugin version → minimum app version
-- Create a GitHub release whose tag exactly matches `manifest.json`'s `version`. Do not use a leading `v`
-- Attach `manifest.json`, `main.js`, and `styles.css` (if present) to the release as individual assets
-- After the initial release, follow the process to add/update your plugin in the community catalog as required
+This project uses [Semantic Versioning](https://semver.org/) (semver). Releases are automated via GitHub Actions, triggered by changes to `CHANGELOG.md`.
+
+### Release Process
+
+1. **Update version** in all three files (must match):
+   - `manifest.json` - plugin metadata
+   - `package.json` - npm package version
+   - `versions.json` - map plugin version → minimum Obsidian version
+
+2. **Add changelog entry** in `CHANGELOG.md`:
+   ```markdown
+   ## [X.Y.Z] - YYYY-MM-DD
+
+   ### Added
+   - New feature description
+
+   ### Changed
+   - Change description
+
+   ### Fixed
+   - Bug fix description
+   ```
+
+3. **Push to main** - the release workflow automatically:
+   - Extracts version from first `## [X.Y.Z]` header in CHANGELOG.md
+   - Verifies version consistency across manifest.json, package.json, and CHANGELOG.md
+   - Builds the plugin
+   - Creates a git tag `vX.Y.Z`
+   - Creates a GitHub release with bundle files from `package.json` → `obsidian.bundleFiles`
+
+### Version Script
+
+Use `npm run version` to bump versions consistently:
+```bash
+npm run version  # prompts for new version, updates manifest.json, package.json, versions.json
+```
+
+### Notes
+
+- Tags use `v` prefix (e.g., `v0.0.1`) per GitHub convention
+- Bundle files are defined in `package.json` under `obsidian.bundleFiles`
+- Workflow skips if release for that version already exists
 
 ## Security, Privacy, and Compliance
 

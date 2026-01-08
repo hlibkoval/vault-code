@@ -1,10 +1,10 @@
 {
-	"id": "vault-code",
-	"name": "Vault Code",
-	"version": "0.0.1",
-	"minAppVersion": "1.0.0",
-	"description": "Claude Code in your Obsidian sidebar.",
-	"author": "Hlib Koval (originally by Derek Larson)",
-	"authorUrl": "https://github.com/hlibkoval",
-	"isDesktopOnly": true
+  "id": "vault-code",
+  "name": "Vault Code",
+  "version": "0.0.2",
+  "minAppVersion": "1.0.0",
+  "description": "Claude Code in your Obsidian sidebar.",
+  "author": "Hlib Koval (originally by Derek Larson)",
+  "authorUrl": "https://github.com/hlibkoval",
+  "isDesktopOnly": true
 }
