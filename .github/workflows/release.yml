@@ -80,7 +80,7 @@ jobs:
         if: steps.check.outputs.exists == 'false'
         run: |
           mkdir -p vault-code
-          cp main.js manifest.json styles.css symbols-nerd-font.woff2 vault-code/
+          jq -r '.obsidian.bundleFiles[]' package.json | xargs -I {} cp {} vault-code/
           tar -czvf vault-code.tar.gz vault-code/
 
       - name: Create tag and release
@@ -91,12 +91,12 @@ jobs:
           git tag "${{ steps.changelog.outputs.tag }}"
           git push origin "${{ steps.changelog.outputs.tag }}"
 
+          # Get bundle files from package.json and attach individually + as tarball
+          BUNDLE_FILES=$(jq -r '.obsidian.bundleFiles[]' package.json | tr '\n' ' ')
           gh release create "${{ steps.changelog.outputs.tag }}" \
             --title "v${{ steps.changelog.outputs.version }}" \
             --notes-file release_notes.md \
             vault-code.tar.gz \
-            main.js \
-            manifest.json \
-            styles.css
+            $BUNDLE_FILES
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

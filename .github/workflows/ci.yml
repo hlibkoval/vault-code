@@ -28,7 +28,7 @@ jobs:
       - name: Create plugin bundle (dry run)
         run: |
           mkdir -p vault-code
-          cp main.js manifest.json styles.css symbols-nerd-font.woff2 vault-code/
+          jq -r '.obsidian.bundleFiles[]' package.json | xargs -I {} cp {} vault-code/
           tar -czvf vault-code.tar.gz vault-code/
           echo "Bundle contents:"
           tar -tzvf vault-code.tar.gz

@@ -4,6 +4,14 @@
 	"description": "Claude Code in your Obsidian sidebar",
 	"main": "main.js",
 	"type": "module",
+	"obsidian": {
+		"bundleFiles": [
+			"main.js",
+			"manifest.json",
+			"styles.css",
+			"symbols-nerd-font.woff2"
+		]
+	},
 	"scripts": {
 		"dev": "node scripts/esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node scripts/esbuild.config.mjs production",

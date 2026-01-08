@@ -7,4 +7,4 @@ main.js
 
 # Ignore nested CLAUDE.md files (keep root CLAUDE.md)
 **/CLAUDE.md
-!CLAUDE.md
+!/CLAUDE.md
