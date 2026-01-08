@@ -2,35 +2,101 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+    paths:
+      - CHANGELOG.md
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from CHANGELOG
+        id: changelog
+        run: |
+          # Get the first version header from CHANGELOG.md
+          VERSION=$(grep -m1 -oP '(?<=## \[)[0-9]+\.[0-9]+\.[0-9]+(?=\])' CHANGELOG.md)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+          # Extract changelog content for this version (between first and second ## header)
+          BODY=$(awk '/^## \['"$VERSION"'\]/{flag=1; next} /^## \[/{flag=0} flag' CHANGELOG.md)
+
+          # Write to file for multiline support
+          echo "$BODY" > release_notes.md
+          echo "Extracted version: $VERSION"
+          echo "Release notes:"
+          cat release_notes.md
+
+      - name: Check if release exists
+        id: check
+        run: |
+          if gh release view "${{ steps.changelog.outputs.tag }}" &>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Release ${{ steps.changelog.outputs.tag }} already exists, skipping"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Release ${{ steps.changelog.outputs.tag }} does not exist, creating"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify version consistency
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          CHANGELOG_VERSION="${{ steps.changelog.outputs.version }}"
+          MANIFEST_VERSION=$(jq -r .version manifest.json)
+          PACKAGE_VERSION=$(jq -r .version package.json)
+
+          if [[ "$CHANGELOG_VERSION" != "$MANIFEST_VERSION" ]]; then
+            echo "::error::Version mismatch: CHANGELOG.md ($CHANGELOG_VERSION) != manifest.json ($MANIFEST_VERSION)"
+            exit 1
+          fi
+
+          if [[ "$CHANGELOG_VERSION" != "$PACKAGE_VERSION" ]]; then
+            echo "::error::Version mismatch: CHANGELOG.md ($CHANGELOG_VERSION) != package.json ($PACKAGE_VERSION)"
+            exit 1
+          fi
+
+          echo "Version $CHANGELOG_VERSION is consistent across all files"
 
       - uses: actions/setup-node@v4
+        if: steps.check.outputs.exists == 'false'
         with:
           node-version: '20'
           cache: 'npm'
 
-      - run: npm ci
-      - run: npm run build
+      - name: Build
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          npm ci
+          npm run build
 
       - name: Create plugin bundle
+        if: steps.check.outputs.exists == 'false'
         run: |
           mkdir -p vault-code
           cp main.js manifest.json styles.css symbols-nerd-font.woff2 vault-code/
           tar -czvf vault-code.tar.gz vault-code/
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            vault-code.tar.gz
-            main.js
-            manifest.json
+      - name: Create tag and release
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.changelog.outputs.tag }}"
+          git push origin "${{ steps.changelog.outputs.tag }}"
+
+          gh release create "${{ steps.changelog.outputs.tag }}" \
+            --title "v${{ steps.changelog.outputs.version }}" \
+            --notes-file release_notes.md \
+            vault-code.tar.gz \
+            main.js \
+            manifest.json \
             styles.css
-          generate_release_notes: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
