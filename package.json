@@ -1,6 +1,6 @@
 {
 	"name": "vault-code",
-	"version": "1.5.3",
+	"version": "0.0.1",
 	"description": "Claude Code in your Obsidian sidebar",
 	"main": "main.js",
 	"type": "module",
