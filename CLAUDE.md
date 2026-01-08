@@ -52,3 +52,9 @@ Vault Code is an Obsidian plugin that embeds a terminal running Claude Code in t
 - `New Claude Tab` - Creates additional Claude instance
 - `Close Claude Tab` - Closes current Claude tab
 - `Toggle Focus: Editor ↔ Claude` - Quick switch between editor and Claude
+
+## Obsidian Plugin Development
+
+Official documentation: https://docs.obsidian.md/Plugins/Getting+started/Build+a+plugin
+
+Alternatively, use the context7 MCP plugin to fetch up-to-date Obsidian API documentation.
