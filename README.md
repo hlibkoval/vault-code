@@ -22,7 +22,7 @@ Run [Claude Code](https://claude.com/claude-code) in your Obsidian sidebar.
 
 In your vault folder, run:
 ```bash
-curl -sL https://github.com/hlibkoval/vault-code/archive/refs/heads/main.tar.gz | tar -xz -C .obsidian/plugins && mv .obsidian/plugins/vault-code-main .obsidian/plugins/vault-code
+curl -fsSL https://github.com/hlibkoval/vault-code/releases/latest/download/vault-code.tar.gz | tar -xzv -C .obsidian/plugins/
 ```
 
 Then in Obsidian: Settings → Community Plugins → Refresh → Enable "Vault Code"
@@ -31,10 +31,9 @@ Then in Obsidian: Settings → Community Plugins → Refresh → Enable "Vault C
 
 ### Manual Installation
 
-1. Download `main.js`, `manifest.json`, `styles.css`, and `symbols-nerd-font.woff2` from the [latest release](https://github.com/hlibkoval/vault-code/releases)
-2. Create folder: `<your-vault>/.obsidian/plugins/vault-code/`
-3. Copy the downloaded files into that folder
-4. Reload Obsidian and enable the plugin in Settings → Community Plugins
+1. Download `vault-code.tar.gz` from the [latest release](https://github.com/hlibkoval/vault-code/releases)
+2. Extract to `<your-vault>/.obsidian/plugins/`
+3. Reload Obsidian and enable the plugin in Settings → Community Plugins
 
 ### From Community Plugins
 
@@ -44,10 +43,7 @@ Once approved, you'll be able to search for "Vault Code" in Community Plugins �
 
 In your vault folder, run:
 ```bash
-cd .obsidian/plugins/vault-code
-curl -LO https://github.com/hlibkoval/vault-code/releases/latest/download/main.js
-curl -LO https://github.com/hlibkoval/vault-code/releases/latest/download/manifest.json
-curl -LO https://github.com/hlibkoval/vault-code/releases/latest/download/symbols-nerd-font.woff2
+curl -fsSL https://github.com/hlibkoval/vault-code/releases/latest/download/vault-code.tar.gz | tar -xzv -C .obsidian/plugins/
 ```
 
 Then restart Obsidian or disable/re-enable the plugin.
@@ -102,7 +98,8 @@ $u="https://github.com/hlibkoval/vault-code/archive/main.zip"; Invoke-WebRequest
 The PTY scripts (`terminal_pty.py` for Unix, `terminal_win.py` for Windows) are embedded as base64 in `main.js` for Obsidian plugin directory compatibility. To rebuild after modifying:
 
 ```bash
-./build.sh
+npm install
+npm run build
 ```
 
 ## Contributing
