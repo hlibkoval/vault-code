@@ -2,6 +2,11 @@
 
 All notable changes to Vault Code will be documented in this file.
 
+## [0.0.3] - 2025-01-08
+
+### Fixed
+- Shift+Enter multiline input now works reliably (was inconsistent - sometimes sending, sometimes adding 2 lines)
+
 ## [0.0.2] - 2025-01-08
 
 ### Fixed
