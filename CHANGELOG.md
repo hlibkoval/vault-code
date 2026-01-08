@@ -2,6 +2,11 @@
 
 All notable changes to Vault Code will be documented in this file.
 
+## [0.0.4] - 2025-01-08
+
+### Changed
+- Added scroll position tracking to mitigate terminal jumping to top during Claude Code permission prompts (upstream issue [anthropics/claude-code#826](https://github.com/anthropics/claude-code/issues/826))
+
 ## [0.0.3] - 2025-01-08
 
 ### Fixed

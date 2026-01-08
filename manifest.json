@@ -1,7 +1,7 @@
 {
   "id": "vault-code",
   "name": "Vault Code",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "minAppVersion": "1.0.0",
   "description": "Claude Code in your Obsidian sidebar.",
   "author": "Hlib Koval (originally by Derek Larson)",
