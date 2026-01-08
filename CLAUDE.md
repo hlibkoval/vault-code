@@ -2,12 +2,28 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Overview
+
+Vault Code is an Obsidian plugin that embeds a terminal running Claude Code in the sidebar.
+
+- Target: Obsidian Community Plugin (TypeScript → bundled JavaScript)
+- Entry point: `src/main.ts` compiled to `main.js`
+- Required release artifacts: `main.js`, `manifest.json`, `styles.css`, `symbols-nerd-font.woff2`
+- Desktop only: Uses Node.js child processes for PTY management
+
+## Environment & Tooling
+
+- Node.js: use current LTS (Node 18+ recommended)
+- **Package manager: npm** - `package.json` defines npm scripts and dependencies
+- **Bundler: esbuild** - `scripts/esbuild.config.mjs` handles bundling with custom PTY embedding plugin
+- Types: `obsidian` type definitions
+
 ## Build Commands
 
 ```bash
 npm install     # Install dependencies
 npm run dev     # Development mode with file watching
-npm run build   # Production build
+npm run build   # Production build (TypeScript check + esbuild)
 npm run lint    # Run ESLint
 ```
 
@@ -26,8 +42,6 @@ No automated tests. To test manually:
 
 ## Architecture
 
-Vault Code is an Obsidian plugin that embeds a terminal running Claude Code in the sidebar.
-
 ### Source Structure
 
 ```
@@ -40,6 +54,9 @@ src/
 └── pty-scripts.ts       # PTY script base64 constants (generated at build)
 
 scripts/
+├── esbuild.config.mjs   # Build configuration with PTY embedding
+├── eslint.config.mts    # ESLint rules for Obsidian plugins
+├── version-bump.mjs     # Version sync script
 ├── terminal_pty.py      # Unix PTY wrapper (Python pty module)
 └── terminal_win.py      # Windows PTY wrapper (pywinpty/ConPTY)
 ```
@@ -76,16 +93,197 @@ scripts/
 
 ### Plugin Commands
 
-- `Open Claude Code` - Opens or focuses Claude panel
-- `New Claude Tab` - Creates additional Claude instance
-- `Close Claude Tab` - Closes current Claude tab
-- `Toggle Focus: Editor ↔ Claude` - Quick switch between editor and Claude
+- `Open Claude code` - Opens or focuses Claude panel
+- `New Claude tab` - Creates additional Claude instance
+- `Close Claude tab` - Closes current Claude tab
+- `Toggle focus: Editor ↔ Claude` - Quick switch between editor and Claude
 
-## Obsidian Plugin Development
+## Linting
 
-Official documentation: https://docs.obsidian.md/Plugins/Getting+started/Build+a+plugin
+- ESLint config is at `scripts/eslint.config.mts`
+- Run with: `npm run lint`
+- Uses `eslint-plugin-obsidianmd` for Obsidian-specific rules
 
-### Fetching docs via context7 MCP
+## File & Folder Conventions
+
+- **Organize code into multiple files**: Split functionality across separate modules rather than putting everything in `main.ts`
+- Source lives in `src/`. Keep `main.ts` small and focused on plugin lifecycle (loading, unloading, registering commands)
+- **Do not commit build artifacts**: Never commit `node_modules/`, `main.js`, or other generated files to version control
+- Keep the plugin small. Avoid large dependencies. Prefer browser-compatible packages
+- Release artifacts must end up at the top level of the plugin folder in the vault (`main.js`, `manifest.json`, `styles.css`)
+
+## Manifest Rules (`manifest.json`)
+
+- Must include:
+  - `id` (plugin ID; for local dev it should match the folder name)
+  - `name`
+  - `version` (Semantic Versioning `x.y.z`)
+  - `minAppVersion`
+  - `description`
+  - `isDesktopOnly` (boolean) - `true` for this plugin
+  - Optional: `author`, `authorUrl`, `fundingUrl`
+- Never change `id` after release. Treat it as stable API
+- Keep `minAppVersion` accurate when using newer APIs
+- Canonical requirements: https://github.com/obsidianmd/obsidian-releases/blob/master/.github/workflows/validate-plugin-entry.yml
+
+## Commands & Settings
+
+- Any user-facing commands should be added via `this.addCommand(...)`
+- If the plugin has configuration, provide a settings tab and sensible defaults
+- Persist settings using `this.loadData()` / `this.saveData()`
+- Use stable command IDs; avoid renaming once released
+
+## Versioning & Releases
+
+- Bump `version` in `manifest.json` (SemVer) and update `versions.json` to map plugin version → minimum app version
+- Create a GitHub release whose tag exactly matches `manifest.json`'s `version`. Do not use a leading `v`
+- Attach `manifest.json`, `main.js`, and `styles.css` (if present) to the release as individual assets
+- After the initial release, follow the process to add/update your plugin in the community catalog as required
+
+## Security, Privacy, and Compliance
+
+Follow Obsidian's **Developer Policies** and **Plugin Guidelines**. In particular:
+
+- Default to local/offline operation. Only make network requests when essential to the feature
+- No hidden telemetry. If you collect optional analytics or call third-party services, require explicit opt-in and document clearly in `README.md` and in settings
+- Never execute remote code, fetch and eval scripts, or auto-update plugin code outside of normal releases
+- Minimize scope: read/write only what's necessary inside the vault. Do not access files outside the vault
+- Clearly disclose any external services used, data sent, and risks
+- Respect user privacy. Do not collect vault contents, filenames, or personal information unless absolutely necessary and explicitly consented
+- Avoid deceptive patterns, ads, or spammy notifications
+- Register and clean up all DOM, app, and interval listeners using the provided `register*` helpers so the plugin unloads safely
+
+## UX & Copy Guidelines
+
+- Prefer sentence case for headings, buttons, and titles
+- Use clear, action-oriented imperatives in step-by-step copy
+- Use **bold** to indicate literal UI labels. Prefer "select" for interactions
+- Use arrow notation for navigation: **Settings → Community plugins**
+- Keep in-app strings short, consistent, and free of jargon
+
+## Performance
+
+- Keep startup light. Defer heavy work until needed
+- Avoid long-running tasks during `onload`; use lazy initialization
+- Batch disk access and avoid excessive vault scans
+- Debounce/throttle expensive operations in response to file system events
+
+## Coding Conventions
+
+- TypeScript with `"strict": true` preferred
+- **Keep `main.ts` minimal**: Focus only on plugin lifecycle (onload, onunload, addCommand calls). Delegate all feature logic to separate modules
+- **Split large files**: If any file exceeds ~200-300 lines, consider breaking it into smaller, focused modules
+- **Use clear module boundaries**: Each file should have a single, well-defined responsibility
+- Bundle everything into `main.js` (no unbundled runtime deps)
+- Avoid Node/Electron APIs if you want mobile compatibility; set `isDesktopOnly` accordingly
+- Prefer `async/await` over promise chains; handle errors gracefully
+
+## Mobile
+
+- This plugin is desktop-only (`isDesktopOnly: true`) due to PTY/terminal requirements
+- For other plugins: test on iOS and Android where feasible
+- Don't assume desktop-only behavior unless `isDesktopOnly` is `true`
+- Avoid large in-memory structures; be mindful of memory and storage constraints
+
+## Agent Do/Don't
+
+**Do**
+- Add commands with stable IDs (don't rename once released)
+- Provide defaults and validation in settings
+- Write idempotent code paths so reload/unload doesn't leak listeners or intervals
+- Use `this.register*` helpers for everything that needs cleanup
+
+**Don't**
+- Introduce network calls without an obvious user-facing reason and documentation
+- Ship features that require cloud services without clear disclosure and explicit opt-in
+- Store or transmit vault contents unless essential and consented
+
+## Common Tasks
+
+### Organize Code Across Multiple Files
+
+**main.ts** (minimal, lifecycle only):
+```ts
+import { Plugin } from "obsidian";
+import { MySettings, DEFAULT_SETTINGS } from "./settings";
+import { registerCommands } from "./commands";
+
+export default class MyPlugin extends Plugin {
+  settings: MySettings;
+
+  async onload() {
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    registerCommands(this);
+  }
+}
+```
+
+**settings.ts**:
+```ts
+export interface MySettings {
+  enabled: boolean;
+  apiKey: string;
+}
+
+export const DEFAULT_SETTINGS: MySettings = {
+  enabled: true,
+  apiKey: "",
+};
+```
+
+**commands/index.ts**:
+```ts
+import { Plugin } from "obsidian";
+import { doSomething } from "./my-command";
+
+export function registerCommands(plugin: Plugin) {
+  plugin.addCommand({
+    id: "do-something",
+    name: "Do something",
+    callback: () => doSomething(plugin),
+  });
+}
+```
+
+### Add a Command
+
+```ts
+this.addCommand({
+  id: "your-command-id",
+  name: "Do the thing",
+  callback: () => this.doTheThing(),
+});
+```
+
+### Persist Settings
+
+```ts
+interface MySettings { enabled: boolean }
+const DEFAULT_SETTINGS: MySettings = { enabled: true };
+
+async onload() {
+  this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+  await this.saveData(this.settings);
+}
+```
+
+### Register Listeners Safely
+
+```ts
+this.registerEvent(this.app.workspace.on("file-open", f => { /* ... */ }));
+this.registerDomEvent(window, "resize", () => { /* ... */ });
+this.registerInterval(window.setInterval(() => { /* ... */ }, 1000));
+```
+
+## Troubleshooting
+
+- Plugin doesn't load after build: ensure `main.js` and `manifest.json` are at the top level of the plugin folder under `<Vault>/.obsidian/plugins/<plugin-id>/`
+- Build issues: if `main.js` is missing, run `npm run build` or `npm run dev` to compile your TypeScript source code
+- Commands not appearing: verify `addCommand` runs after `onload` and IDs are unique
+- Settings not persisting: ensure `loadData`/`saveData` are awaited and you re-render the UI after changes
+- Mobile-only issues: confirm you're not using desktop-only APIs; check `isDesktopOnly` and adjust
+
+## Fetching Obsidian Docs
 
 The docs site uses dynamic loading, so WebFetch won't work. Use context7 MCP instead:
 
@@ -97,3 +295,11 @@ Example query topics:
 - "ItemView subclass, getViewType, getDisplayText"
 - "registerView, addRibbonIcon, addCommand"
 - "Workspace, leaf, split pane API"
+
+## References
+
+- Obsidian sample plugin: https://github.com/obsidianmd/obsidian-sample-plugin
+- API documentation: https://docs.obsidian.md
+- Developer policies: https://docs.obsidian.md/Developer+policies
+- Plugin guidelines: https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines
+- Style guide: https://help.obsidian.md/style-guide
