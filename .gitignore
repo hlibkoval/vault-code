@@ -1,5 +1,10 @@
 node_modules/
+main.js
 .DS_Store
 *.log
 .claude/
 .idea/
+
+# Ignore nested CLAUDE.md files (keep root CLAUDE.md)
+**/CLAUDE.md
+!CLAUDE.md
