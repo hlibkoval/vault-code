@@ -2,20 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Build Command
-
-After modifying the PTY scripts (`terminal_pty.py` or `terminal_win.py`), rebuild the plugin:
+## Build Commands
 
 ```bash
-./build.sh
+npm install     # Install dependencies
+npm run dev     # Development mode with file watching
+npm run build   # Production build
+npm run lint    # Run ESLint
 ```
 
-This embeds the Python scripts as base64 into `main.js`. There is no TypeScript compilation - `main.js` is the source file bundled with xterm.js.
+The build process:
+1. TypeScript files in `src/` are compiled and bundled by esbuild
+2. PTY scripts (`scripts/terminal_pty.py`, `scripts/terminal_win.py`) are embedded as base64 via custom esbuild plugin
+3. Output is `main.js` at the project root
 
 ## Testing Changes
 
 No automated tests. To test manually:
-1. Run `./build.sh` after any PTY script changes
+1. Run `npm run build`
 2. Copy `main.js`, `manifest.json`, `styles.css`, `symbols-nerd-font.woff2` to a test vault's `.obsidian/plugins/vault-code/`
 3. Reload Obsidian (Cmd+R) or disable/re-enable the plugin
 4. Open Vault Code panel and verify terminal functionality
@@ -24,20 +28,44 @@ No automated tests. To test manually:
 
 Vault Code is an Obsidian plugin that embeds a terminal running Claude Code in the sidebar.
 
+### Source Structure
+
+```
+src/
+├── main.ts              # Plugin lifecycle, commands, ribbon icon
+├── terminal-view.ts     # ItemView subclass with xterm.js UI
+├── terminal-process.ts  # PTY process management
+├── xterm-theme.ts       # Theme color extraction
+├── xterm-css.ts         # xterm.js CSS injection
+└── pty-scripts.ts       # PTY script base64 constants (generated at build)
+
+scripts/
+├── terminal_pty.py      # Unix PTY wrapper (Python pty module)
+└── terminal_win.py      # Windows PTY wrapper (pywinpty/ConPTY)
+```
+
 ### Key Components
 
-- **main.js** - Bundled plugin code containing:
-  - `VaultTerminalPlugin` - Main plugin class registering views and commands
-  - `TerminalView` - ItemView subclass managing xterm.js terminal instances
-  - Embedded xterm.js library for terminal emulation
-  - Base64-encoded PTY scripts (`PTY_SCRIPT_B64`, `WIN_PTY_SCRIPT_B64`)
+- **VaultCodePlugin** (`src/main.ts`) - Main plugin class
+  - Registers `TerminalView` view type
+  - Adds ribbon icon and commands
+  - Loads Nerd Font for terminal icons
 
-- **terminal_pty.py** - Unix PTY wrapper using Python's `pty` module. Handles:
-  - Forking pseudo-terminal for shell processes
-  - Custom resize protocol via escape sequence `\x1b]RESIZE;cols;rows\x07`
-  - Bidirectional I/O between xterm.js and the shell
+- **TerminalView** (`src/terminal-view.ts`) - ItemView subclass
+  - xterm.js terminal initialization and UI
+  - Resize handling with FitAddon
+  - Theme sync with Obsidian
+  - Escape key scope for terminal passthrough
 
-- **terminal_win.py** - Windows equivalent using `pywinpty` (ConPTY). Same resize protocol.
+- **TerminalProcess** (`src/terminal-process.ts`) - PTY management
+  - Spawns Python PTY wrapper as child process
+  - Handles stdin/stdout with proper UTF-8 decoding
+  - Resize protocol via escape sequence `\x1b]RESIZE;cols;rows\x07`
+
+- **PTY Scripts** (`scripts/`) - Python wrappers
+  - Unix: Uses Python's `pty` module for pseudo-terminal
+  - Windows: Uses `pywinpty` (ConPTY)
+  - Auto-launches `claude` command on shell start
 
 ### Data Flow
 

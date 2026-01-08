@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Create plugin bundle (dry run)
+        run: |
+          mkdir -p vault-code
+          cp main.js manifest.json styles.css symbols-nerd-font.woff2 vault-code/
+          tar -czvf vault-code.tar.gz vault-code/
+          echo "Bundle contents:"
+          tar -tzvf vault-code.tar.gz
