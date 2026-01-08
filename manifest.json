@@ -1,9 +1,9 @@
 {
-	"id": "claude-sidebar",
-	"name": "Claude Sidebar",
+	"id": "vault-code",
+	"name": "Vault Code",
 	"version": "1.5.3",
 	"minAppVersion": "1.0.0",
-	"description": "Run Claude Code in your sidebar.",
+	"description": "Claude Code in your Obsidian sidebar.",
 	"author": "Hlib Koval (originally by Derek Larson)",
 	"authorUrl": "https://github.com/hlibkoval",
 	"isDesktopOnly": true

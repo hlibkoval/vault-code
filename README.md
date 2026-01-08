@@ -1,8 +1,8 @@
-# Claude Sidebar
+# Vault Code
 
 Run [Claude Code](https://claude.com/claude-code) in your Obsidian sidebar.
 
-![Claude Sidebar](screenshot-obsidian.png)
+![Vault Code](screenshot-obsidian.png)
 
 ## Features
 
@@ -22,32 +22,32 @@ Run [Claude Code](https://claude.com/claude-code) in your Obsidian sidebar.
 
 In your vault folder, run:
 ```bash
-curl -sL https://github.com/hlibkoval/obsidian-claude-sidebar/archive/refs/heads/main.tar.gz | tar -xz -C .obsidian/plugins && mv .obsidian/plugins/obsidian-claude-sidebar-main .obsidian/plugins/claude-sidebar
+curl -sL https://github.com/hlibkoval/vault-code/archive/refs/heads/main.tar.gz | tar -xz -C .obsidian/plugins && mv .obsidian/plugins/vault-code-main .obsidian/plugins/vault-code
 ```
 
-Then in Obsidian: Settings → Community Plugins → Refresh → Enable "Claude Sidebar"
+Then in Obsidian: Settings → Community Plugins → Refresh → Enable "Vault Code"
 
 **Windows:** See [Windows Setup](#windows-setup-experimental) below.
 
 ### Manual Installation
 
-1. Download `main.js`, `manifest.json`, `styles.css`, and `symbols-nerd-font.woff2` from the [latest release](https://github.com/hlibkoval/obsidian-claude-sidebar/releases)
-2. Create folder: `<your-vault>/.obsidian/plugins/claude-sidebar/`
+1. Download `main.js`, `manifest.json`, `styles.css`, and `symbols-nerd-font.woff2` from the [latest release](https://github.com/hlibkoval/vault-code/releases)
+2. Create folder: `<your-vault>/.obsidian/plugins/vault-code/`
 3. Copy the downloaded files into that folder
 4. Reload Obsidian and enable the plugin in Settings → Community Plugins
 
 ### From Community Plugins
 
-Once approved, you'll be able to search for "Claude Sidebar" in Community Plugins → Browse.
+Once approved, you'll be able to search for "Vault Code" in Community Plugins → Browse.
 
 ## Updating
 
 In your vault folder, run:
 ```bash
-cd .obsidian/plugins/claude-sidebar
-curl -LO https://github.com/hlibkoval/obsidian-claude-sidebar/releases/latest/download/main.js
-curl -LO https://github.com/hlibkoval/obsidian-claude-sidebar/releases/latest/download/manifest.json
-curl -LO https://github.com/hlibkoval/obsidian-claude-sidebar/releases/latest/download/symbols-nerd-font.woff2
+cd .obsidian/plugins/vault-code
+curl -LO https://github.com/hlibkoval/vault-code/releases/latest/download/main.js
+curl -LO https://github.com/hlibkoval/vault-code/releases/latest/download/manifest.json
+curl -LO https://github.com/hlibkoval/vault-code/releases/latest/download/symbols-nerd-font.woff2
 ```
 
 Then restart Obsidian or disable/re-enable the plugin.
@@ -85,7 +85,7 @@ pip install pywinpty
 
 3. Install the plugin (run from your vault folder in PowerShell):
 ```powershell
-$u="https://github.com/hlibkoval/obsidian-claude-sidebar/archive/main.zip"; Invoke-WebRequest $u -OutFile s.zip; Expand-Archive s.zip .obsidian\plugins -Force; Move-Item ".obsidian\plugins\obsidian-claude-sidebar-main" ".obsidian\plugins\claude-sidebar" -Force; Remove-Item s.zip
+$u="https://github.com/hlibkoval/vault-code/archive/main.zip"; Invoke-WebRequest $u -OutFile s.zip; Expand-Archive s.zip .obsidian\plugins -Force; Move-Item ".obsidian\plugins\vault-code-main" ".obsidian\plugins\vault-code" -Force; Remove-Item s.zip
 ```
 
 **Note:** Windows support is experimental. Performance may be slower than macOS/Linux due to ConPTY overhead.
@@ -107,7 +107,7 @@ The PTY scripts (`terminal_pty.py` for Unix, `terminal_win.py` for Windows) are 
 
 ## Contributing
 
-Issues and PRs welcome at [github.com/hlibkoval/obsidian-claude-sidebar](https://github.com/hlibkoval/obsidian-claude-sidebar)
+Issues and PRs welcome at [github.com/hlibkoval/vault-code](https://github.com/hlibkoval/vault-code)
 
 ## Author
 
