@@ -92,6 +92,18 @@ export class TerminalView extends ItemView {
 
 		// Custom key handlers
 		this.term.attachCustomKeyEventHandler((ev) => {
+			// Shift+Enter: send Alt+Enter for multi-line input in Claude Code
+			// Must handle BOTH keydown and keyup to fully block the event
+			if (ev.shiftKey && ev.key === "Enter") {
+				if (ev.type === "keydown") {
+					this.termProcess?.write("\x1b\r");
+				}
+				// Prevent propagation to Obsidian's hotkey system
+				ev.preventDefault();
+				ev.stopPropagation();
+				return false;
+			}
+
 			if (ev.type === "keydown") {
 				// Cmd+Arrow: readline shortcuts for line navigation
 				if (ev.metaKey) {
@@ -103,11 +115,6 @@ export class TerminalView extends ItemView {
 						this.termProcess?.write("\x01"); // Ctrl+A = start of line
 						return false;
 					}
-				}
-				// Shift+Enter: send Alt+Enter for multi-line input
-				if (ev.key === "Enter" && ev.shiftKey) {
-					this.termProcess?.write("\x1b\r");
-					return false;
 				}
 			}
 			return true;
