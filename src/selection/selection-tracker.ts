@@ -179,9 +179,11 @@ export class SelectionTracker {
 
 		// Account for frontmatter (yaml section) which doesn't render in preview
 		// The sections array includes frontmatter as the first section if present
-		const cache = this.app.metadataCache.getFileCache(
-			this.app.workspace.getActiveFile() as TFile
-		);
+		const activeFile = this.app.workspace.getActiveFile();
+		if (!(activeFile instanceof TFile)) {
+			return blockIndex;
+		}
+		const cache = this.app.metadataCache.getFileCache(activeFile);
 		const hasFrontmatter = cache?.frontmatter !== undefined;
 
 		return hasFrontmatter ? blockIndex + 1 : blockIndex;

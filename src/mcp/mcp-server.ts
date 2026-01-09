@@ -62,7 +62,7 @@ export class MCPServer {
 
 		// Create lock file for Claude Code discovery
 		createLockFile(this.port, this.options.vaultPath, this.authToken);
-		console.log(`MCP: Server starting on port ${this.port}`);
+		console.debug(`MCP: Server starting on port ${this.port}`);
 
 		// Create HTTP server for WebSocket upgrade
 		this.server = createServer((_req: IncomingMessage, res: ServerResponse) => {
@@ -174,7 +174,7 @@ export class MCPServer {
 
 		const client: WSClient = { socket, authenticated: true, pendingPing: null };
 		this.connectedClients.add(client);
-		console.log("MCP: Client connected");
+		console.debug("MCP: Client connected");
 
 		// Start keepalive pings
 		this.startKeepalive();
@@ -190,7 +190,7 @@ export class MCPServer {
 			if (this.connectedClients.size === 0) {
 				this.stopKeepalive();
 			}
-			console.log("MCP: Client disconnected");
+			console.debug("MCP: Client disconnected");
 			this.options.onDisconnected?.();
 		});
 
