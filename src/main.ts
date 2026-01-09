@@ -6,10 +6,11 @@ import {createAtMentionedNotification, createCodeRange, createSelectionChangedNo
 import {toFileUri} from "./utils/uri-utils";
 import {findTextInSection, findTextPositionInSource, findTextWithContext, getTextBeforeSelection} from "./selection/text-position-resolver";
 import {loadNerdFont, unloadNerdFont} from "./resources/font-loader";
+import {IVaultContext} from "./interfaces";
 
 const SELECTION_NONE = {start: {line: 0, character: 0}, end: {line: 0, character: 0}};
 
-export default class VaultCodePlugin extends Plugin {
+export default class VaultCodePlugin extends Plugin implements IVaultContext {
 	private mcpServer: MCPServer | null = null;
 
 	private lastSelection: string | null = null;
