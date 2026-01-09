@@ -1,8 +1,7 @@
 import {Editor, EditorPosition, MarkdownPreviewView, MarkdownView, Plugin, TFile} from "obsidian";
 import {TerminalView, VIEW_TYPE} from "./view/terminal-view";
 import {ViewManager} from "./view/view-manager";
-import {MCPServer} from "./mcp/mcp-server";
-import {cleanupStaleLockFiles} from "./mcp/mcp-lock-file";
+import {MCPIntegration} from "./mcp/mcp-integration";
 import {createAtMentionedNotification, createCodeRange, createSelectionChangedNotification,} from "./mcp/mcp-notifications";
 import {toFileUri} from "./utils/uri-utils";
 import {findTextInSection, findTextPositionInSource, findTextWithContext, getTextBeforeSelection} from "./selection/text-position-resolver";
@@ -12,7 +11,7 @@ import {IVaultContext} from "./interfaces";
 const SELECTION_NONE = {start: {line: 0, character: 0}, end: {line: 0, character: 0}};
 
 export default class VaultCodePlugin extends Plugin implements IVaultContext {
-	private mcpServer: MCPServer | null = null;
+	private mcpIntegration: MCPIntegration | null = null;
 	private viewManager!: ViewManager;
 
 	private lastSelection: string | null = null;
@@ -113,7 +112,7 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 	 * Poll for selection changes in the active editor.
 	 */
 	private pollSelectionChange(): void {
-		if (!this.mcpServer?.hasConnectedClients()) {
+		if (!this.mcpIntegration?.hasConnectedClients()) {
 			return;
 		}
 
@@ -127,8 +126,8 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 
 	onunload(): void {
 		// Stop MCP server
-		this.mcpServer?.stop();
-		this.mcpServer = null;
+		this.mcpIntegration?.stop();
+		this.mcpIntegration = null;
 
 		// Don't detach leaves - Obsidian manages leaf lifecycle during plugin updates
 		// Remove injected font style
@@ -139,42 +138,29 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 	 * Start the MCP server for Claude Code integration.
 	 */
 	private async startMCPServer(): Promise<void> {
-		try {
-			const vaultPath = this.getVaultPath();
-			if (!vaultPath) {
-				return;
-			}
-
-			// Clean up stale lock files from previous sessions
-			cleanupStaleLockFiles(vaultPath);
-
-			this.mcpServer = new MCPServer({
-				vaultPath,
-				onInitialized: () => {
-					const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-					if (view) {
-						this.handleSelectionChange(view, view.file);
-					}
-				},
-				onConnected: () => {
-					// Claude Code CLI connected
-				},
-				onDisconnected: () => {
-					// Claude Code CLI disconnected
-				},
-			});
-
-			await this.mcpServer.start();
-		} catch (err) {
-			console.error("MCP: Failed to start server:", err);
+		const vaultPath = this.getVaultPath();
+		if (!vaultPath) {
+			return;
 		}
+
+		this.mcpIntegration = new MCPIntegration({
+			vaultPath,
+			onInitialized: () => {
+				const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+				if (view) {
+					this.handleSelectionChange(view, view.file);
+				}
+			},
+		});
+
+		await this.mcpIntegration.start();
 	}
 
 	/**
 	 * Send current selection to Claude Code as an @-mention.
 	 */
 	private sendToClaudeCode(editor: Editor, file: TFile | null): void {
-		if (!this.mcpServer?.hasConnectedClients() || !file) {
+		if (!this.mcpIntegration?.hasConnectedClients() || !file) {
 			return;
 		}
 
@@ -187,7 +173,7 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 				null,
 				null
 			);
-			this.mcpServer.sendNotification(notification);
+			this.mcpIntegration.sendNotification(notification);
 		} else {
 			const startLine = selection.anchor.line;
 			const endLine = selection.head.line;
@@ -196,7 +182,7 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 				startLine <= endLine ? [startLine, endLine] : [endLine, startLine];
 
 			const notification = createAtMentionedNotification(fileUri, start, end);
-			this.mcpServer.sendNotification(notification);
+			this.mcpIntegration.sendNotification(notification);
 		}
 
 		// Focus the terminal
@@ -214,7 +200,7 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 	}
 
 	private async handlePreviewSelection(preview: MarkdownPreviewView, file: TFile | null): Promise<void> {
-		if (!this.mcpServer?.hasConnectedClients() || !file) {
+		if (!this.mcpIntegration?.hasConnectedClients() || !file) {
 			return;
 		}
 
@@ -233,7 +219,7 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 
 		if (!selectionObj || selectionObj.isCollapsed || !selectedText) {
 			// No selection - send empty selection notification
-			this.mcpServer.sendNotification(createSelectionChangedNotification(
+			this.mcpIntegration.sendNotification(createSelectionChangedNotification(
 				filePath,
 				SELECTION_NONE,
 				"",
@@ -274,7 +260,7 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 		}
 
 		if (position) {
-			this.mcpServer.sendNotification(createSelectionChangedNotification(
+			this.mcpIntegration.sendNotification(createSelectionChangedNotification(
 				filePath,
 				createCodeRange(position.startLine, position.startChar, position.endLine, position.endChar),
 				selectedText,
@@ -332,7 +318,7 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 	}
 
 	private handleEditorSelection(editor: Editor, file: TFile | null): void {
-		if (!this.mcpServer?.hasConnectedClients()) {
+		if (!this.mcpIntegration?.hasConnectedClients()) {
 			return;
 		}
 
@@ -350,7 +336,7 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 		this.lastCursor = cursor;
 
 		if (!selection) {
-			this.mcpServer.sendNotification(createSelectionChangedNotification(
+			this.mcpIntegration.sendNotification(createSelectionChangedNotification(
 				filePath,
 				SELECTION_NONE,
 				"",
@@ -366,7 +352,7 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 				const endCol =
 					sel.anchor.line <= sel.head.line ? sel.head.ch : sel.anchor.ch;
 
-				this.mcpServer.sendNotification(createSelectionChangedNotification(
+				this.mcpIntegration.sendNotification(createSelectionChangedNotification(
 					filePath,
 					createCodeRange(startLine, startCol, endLine, endCol),
 					editor.getSelection(),
