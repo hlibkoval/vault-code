@@ -1,4 +1,4 @@
-import {JSONRPCNotification} from "../mcp-types";
+import {JSONRPCNotification} from "../mcp/mcp-types";
 
 /**
  * Interface for sending MCP notifications to Claude Code.

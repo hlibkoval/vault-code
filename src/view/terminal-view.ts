@@ -1,10 +1,10 @@
 import { ItemView, Scope, WorkspaceLeaf } from "obsidian";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { getThemeColors } from "./xterm-theme";
-import { injectXtermCSS } from "./xterm-css";
-import { TerminalProcess, connectTerminalToProcess } from "./terminal-process";
-import type VaultCodePlugin from "./main";
+import { getThemeColors } from "../theme/xterm-theme";
+import { injectXtermCSS } from "../theme/xterm-css";
+import { TerminalProcess, connectTerminalToProcess } from "../terminal/terminal-process";
+import type VaultCodePlugin from "../main";
 
 export const VIEW_TYPE = "vault-terminal";
 

@@ -1,8 +1,8 @@
 import {Editor, EditorPosition, MarkdownPreviewView, MarkdownView, Plugin, TFile} from "obsidian";
-import {TerminalView, VIEW_TYPE} from "./terminal-view";
-import {MCPServer} from "./mcp-server";
-import {cleanupStaleLockFiles} from "./mcp-lock-file";
-import {createAtMentionedNotification, createCodeRange, createSelectionChangedNotification,} from "./mcp-notifications";
+import {TerminalView, VIEW_TYPE} from "./view/terminal-view";
+import {MCPServer} from "./mcp/mcp-server";
+import {cleanupStaleLockFiles} from "./mcp/mcp-lock-file";
+import {createAtMentionedNotification, createCodeRange, createSelectionChangedNotification,} from "./mcp/mcp-notifications";
 import {toFileUri} from "./utils/uri-utils";
 import {findTextInSection, findTextPositionInSource, findTextWithContext, getTextBeforeSelection} from "./selection/text-position-resolver";
 import {loadNerdFont, unloadNerdFont} from "./resources/font-loader";
