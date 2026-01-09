@@ -1,9 +1,10 @@
-import {Plugin} from "obsidian";
+import {Editor, Plugin, TFile} from "obsidian";
 import {TerminalView, VIEW_TYPE} from "./view/terminal-view";
 import {ViewManager} from "./view/view-manager";
 import {MCPIntegration} from "./mcp/mcp-integration";
 import {SelectionTracker} from "./selection";
-import {sendToClaudeCode} from "./commands/send-to-claude";
+import {createAtMentionedNotification} from "./mcp/mcp-notifications";
+import {toFileUri} from "./utils/uri-utils";
 import {loadNerdFont, unloadNerdFont} from "./resources/font-loader";
 import {IVaultContext} from "./interfaces";
 
@@ -62,15 +63,7 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 			id: "send-to-claude",
 			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude is a brand name
 			name: "Send to Claude Code",
-			editorCallback: (editor, ctx) => {
-				if (this.mcpIntegration) {
-					sendToClaudeCode(editor, ctx.file, {
-						vaultContext: this,
-						notificationSender: this.mcpIntegration,
-						onComplete: () => this.viewManager.focusTerminal(),
-					});
-				}
-			},
+			editorCallback: (editor, ctx) => this.sendToClaudeCode(editor, ctx.file),
 		});
 
 		// Start selection tracking
@@ -135,5 +128,29 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 	getVaultPath(): string {
 		const adapter = this.app.vault.adapter as { basePath?: string };
 		return adapter.basePath || "";
+	}
+
+	/**
+	 * Send selected text to Claude Code via @-mention notification.
+	 */
+	private sendToClaudeCode(editor: Editor, file: TFile | null): void {
+		if (!this.mcpIntegration || !file) {
+			return;
+		}
+
+		const selection = editor.listSelections()[0];
+		if (!selection) {
+			return;
+		}
+
+		const startLine = Math.min(selection.anchor.line, selection.head.line);
+		const endLine = Math.max(selection.anchor.line, selection.head.line);
+		const fileUri = toFileUri(this.getVaultPath(), file.path);
+
+		this.mcpIntegration.sendNotification(
+			createAtMentionedNotification(fileUri, startLine, endLine)
+		);
+
+		this.viewManager.focusTerminal();
 	}
 }
