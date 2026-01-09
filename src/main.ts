@@ -1,5 +1,6 @@
 import {Editor, EditorPosition, MarkdownPreviewView, MarkdownView, Plugin, TFile} from "obsidian";
 import {TerminalView, VIEW_TYPE} from "./view/terminal-view";
+import {ViewManager} from "./view/view-manager";
 import {MCPServer} from "./mcp/mcp-server";
 import {cleanupStaleLockFiles} from "./mcp/mcp-lock-file";
 import {createAtMentionedNotification, createCodeRange, createSelectionChangedNotification,} from "./mcp/mcp-notifications";
@@ -12,6 +13,7 @@ const SELECTION_NONE = {start: {line: 0, character: 0}, end: {line: 0, character
 
 export default class VaultCodePlugin extends Plugin implements IVaultContext {
 	private mcpServer: MCPServer | null = null;
+	private viewManager!: ViewManager;
 
 	private lastSelection: string | null = null;
 	private lastCursor: EditorPosition | null = null;
@@ -24,22 +26,23 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 		await this.startMCPServer();
 
 		this.registerView(VIEW_TYPE, (leaf) => new TerminalView(leaf, this));
+		this.viewManager = new ViewManager(this.app.workspace);
 
 		// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude is a brand name
-		this.addRibbonIcon("bot", "Open Claude", () => void this.activateView());
+		this.addRibbonIcon("bot", "Open Claude", () => void this.viewManager.activateView());
 
 		this.addCommand({
 			id: "open-claude",
 			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude is a brand name
 			name: "Open Claude code",
-			callback: () => void this.activateView(),
+			callback: () => void this.viewManager.activateView(),
 		});
 
 		this.addCommand({
 			id: "new-claude-tab",
 			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude is a brand name
 			name: "New Claude tab",
-			callback: () => void this.createNewTab(),
+			callback: () => void this.viewManager.createNewTab(),
 		});
 
 		this.addCommand({
@@ -60,7 +63,7 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 			id: "toggle-claude-focus",
 			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude is a brand name
 			name: "Toggle focus: Editor ↔ Claude",
-			callback: () => void this.toggleFocus(),
+			callback: () => void this.viewManager.toggleFocus(),
 		});
 
 		this.addCommand({
@@ -120,30 +123,6 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 		}
 
 		this.handleSelectionChange(view, view.file);
-	}
-
-	private async toggleFocus(): Promise<void> {
-		const activeView = this.app.workspace.getActiveViewOfType(TerminalView);
-		if (activeView) {
-			// Currently in Claude, go to editor
-			const leaves = this.app.workspace.getLeavesOfType("markdown");
-			const firstLeaf = leaves[0];
-			if (firstLeaf) {
-				this.app.workspace.setActiveLeaf(firstLeaf, {focus: true});
-			}
-		} else {
-			// Currently in editor, go to Claude
-			const claudeLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
-			const firstClaudeLeaf = claudeLeaves[0];
-			if (firstClaudeLeaf) {
-				this.app.workspace.setActiveLeaf(firstClaudeLeaf, {focus: true});
-				// Focus the terminal
-				const view = firstClaudeLeaf.view;
-				if (view instanceof TerminalView) {
-					view.focusTerminal();
-				}
-			}
-		}
 	}
 
 	onunload(): void {
@@ -221,7 +200,7 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 		}
 
 		// Focus the terminal
-		this.focusTerminal();
+		this.viewManager.focusTerminal();
 	}
 
 	/**
@@ -404,41 +383,8 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 		return fileChanged || cursorChanged || selectionChanged;
 	}
 
-	/**
-	 * Focus the first Claude terminal.
-	 */
-	private focusTerminal(): void {
-		const claudeLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
-		const firstClaudeLeaf = claudeLeaves[0];
-		if (firstClaudeLeaf) {
-			this.app.workspace.setActiveLeaf(firstClaudeLeaf, {focus: true});
-			const view = firstClaudeLeaf.view;
-			if (view instanceof TerminalView) {
-				view.focusTerminal();
-			}
-		}
-	}
-
 	getVaultPath(): string {
 		const adapter = this.app.vault.adapter as { basePath?: string };
 		return adapter.basePath || "";
-	}
-
-	private async activateView(): Promise<void> {
-		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
-		const existingLeaf = leaves[0];
-		if (existingLeaf) {
-			await this.app.workspace.revealLeaf(existingLeaf);
-			return;
-		}
-		await this.createNewTab();
-	}
-
-	private async createNewTab(): Promise<void> {
-		const leaf = this.app.workspace.getRightLeaf(false);
-		if (leaf) {
-			await leaf.setViewState({type: VIEW_TYPE, active: true});
-			await this.app.workspace.revealLeaf(leaf);
-		}
 	}
 }
