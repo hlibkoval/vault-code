@@ -1,10 +1,9 @@
-import {Editor, Plugin, TFile} from "obsidian";
+import {Plugin} from "obsidian";
 import {TerminalView, VIEW_TYPE} from "./view/terminal-view";
 import {ViewManager} from "./view/view-manager";
 import {MCPIntegration} from "./mcp/mcp-integration";
-import {createAtMentionedNotification} from "./mcp/mcp-notifications";
-import {toFileUri} from "./utils/uri-utils";
 import {SelectionTracker} from "./selection";
+import {sendToClaudeCode} from "./commands/send-to-claude";
 import {loadNerdFont, unloadNerdFont} from "./resources/font-loader";
 import {IVaultContext} from "./interfaces";
 
@@ -64,7 +63,13 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude is a brand name
 			name: "Send to Claude Code",
 			editorCallback: (editor, ctx) => {
-				this.sendToClaudeCode(editor, ctx.file);
+				if (this.mcpIntegration) {
+					sendToClaudeCode(editor, ctx.file, {
+						vaultContext: this,
+						notificationSender: this.mcpIntegration,
+						onComplete: () => this.viewManager.focusTerminal(),
+					});
+				}
 			},
 		});
 
@@ -125,39 +130,6 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 		this.register(() => {
 			this.selectionTracker?.stop();
 		});
-	}
-
-	/**
-	 * Send current selection to Claude Code as an @-mention.
-	 */
-	private sendToClaudeCode(editor: Editor, file: TFile | null): void {
-		if (!this.mcpIntegration?.hasConnectedClients() || !file) {
-			return;
-		}
-
-		const fileUri = toFileUri(this.getVaultPath(), file.path);
-		const selection = editor.listSelections()[0];
-		if (!selection) {
-			// No selection, send just the file reference
-			const notification = createAtMentionedNotification(
-				fileUri,
-				null,
-				null
-			);
-			this.mcpIntegration.sendNotification(notification);
-		} else {
-			const startLine = selection.anchor.line;
-			const endLine = selection.head.line;
-			// Ensure start <= end
-			const [start, end] =
-				startLine <= endLine ? [startLine, endLine] : [endLine, startLine];
-
-			const notification = createAtMentionedNotification(fileUri, start, end);
-			this.mcpIntegration.sendNotification(notification);
-		}
-
-		// Focus the terminal
-		this.viewManager.focusTerminal();
 	}
 
 	getVaultPath(): string {
