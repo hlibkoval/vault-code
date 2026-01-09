@@ -5,6 +5,8 @@ import {TerminalView, VIEW_TYPE} from "./terminal-view";
 import {MCPServer} from "./mcp-server";
 import {cleanupStaleLockFiles} from "./mcp-lock-file";
 import {createAtMentionedNotification, createCodeRange, createSelectionChangedNotification,} from "./mcp-notifications";
+import {toFileUri} from "./utils/uri-utils";
+import {findTextInSection, findTextPositionInSource, findTextWithContext, getTextBeforeSelection} from "./selection/text-position-resolver";
 
 const SELECTION_NONE = {start: {line: 0, character: 0}, end: {line: 0, character: 0}};
 
@@ -197,7 +199,7 @@ export default class VaultCodePlugin extends Plugin {
 			return;
 		}
 
-		const fileUri = this.toFileUri(file.path);
+		const fileUri = toFileUri(this.getVaultPath(), file.path);
 		const selection = editor.listSelections()[0];
 		if (!selection) {
 			// No selection, send just the file reference
@@ -223,18 +225,6 @@ export default class VaultCodePlugin extends Plugin {
 	}
 
 	/**
-	 * Convert relative Obsidian path to file:// URI.
-	 * MCP protocol requires file:// URI format for file paths.
-	 */
-	private toFileUri(relativePath: string): string {
-		const vaultPath = this.getVaultPath();
-		if (vaultPath) {
-			return `file://${vaultPath}/${relativePath}`;
-		}
-		return `file://${relativePath}`;
-	}
-
-	/**
 	 * Handle selection changes
 	 */
 	private handleSelectionChange(view: MarkdownView, file: TFile | null): void {
@@ -251,7 +241,7 @@ export default class VaultCodePlugin extends Plugin {
 
 		const selectionObj = this.getSelectionInElement(preview.containerEl);
 		const selectedText = selectionObj?.toString() || "";
-		const filePath = file ? this.toFileUri(file.path) : null;
+		const filePath = file ? toFileUri(this.getVaultPath(), file.path) : null;
 
 		// Check if selection changed
 		if (!this.fileContextChanged(filePath, null, selectedText)) {
@@ -289,19 +279,19 @@ export default class VaultCodePlugin extends Plugin {
 		if (sectionIndex !== -1 && sectionIndex < sections.length) {
 			const section = sections[sectionIndex];
 			if (section) {
-				position = this.findTextInSection(source, selectedText, section.position);
+				position = findTextInSection(source, selectedText, section.position);
 			}
 		}
 
 		// Fallback: use context-based matching for uniqueness
 		if (!position) {
-			const contextBefore = this.getTextBeforeSelection(preview.containerEl, range, 30);
-			position = this.findTextWithContext(source, selectedText, contextBefore);
+			const contextBefore = getTextBeforeSelection(preview.containerEl, range, 30);
+			position = findTextWithContext(source, selectedText, contextBefore);
 		}
 
 		// Last resort: simple indexOf (first match)
 		if (!position) {
-			position = this.findTextPositionInSource(source, selectedText, 0);
+			position = findTextPositionInSource(source, selectedText, 0);
 		}
 
 		if (position) {
@@ -346,87 +336,6 @@ export default class VaultCodePlugin extends Plugin {
 		return hasFrontmatter ? blockIndex + 1 : blockIndex;
 	}
 
-	/**
-	 * Find text within a specific section's bounds.
-	 */
-	private findTextInSection(
-		source: string,
-		selectedText: string,
-		sectionPos: { start: { offset: number }; end: { offset: number } }
-	): { startLine: number; startChar: number; endLine: number; endChar: number } | null {
-		const sectionText = source.substring(sectionPos.start.offset, sectionPos.end.offset);
-		const localIndex = sectionText.indexOf(selectedText);
-
-		if (localIndex === -1) return null;
-
-		const globalIndex = sectionPos.start.offset + localIndex;
-		return this.findTextPositionInSource(source, selectedText, globalIndex);
-	}
-
-	/**
-	 * Get text content before the selection in the DOM for context matching.
-	 */
-	private getTextBeforeSelection(container: HTMLElement, range: Range, maxLength: number): string {
-		// Create a range from the start of the container to the selection start
-		const preRange = document.createRange();
-		preRange.setStart(container, 0);
-		preRange.setEnd(range.startContainer, range.startOffset);
-
-		const text = preRange.toString();
-		// Return the last maxLength characters
-		return text.slice(-maxLength);
-	}
-
-	/**
-	 * Find text using context before the selection for uniqueness.
-	 */
-	private findTextWithContext(
-		source: string,
-		selectedText: string,
-		contextBefore: string
-	): { startLine: number; startChar: number; endLine: number; endChar: number } | null {
-		if (!contextBefore) return null;
-
-		// Search for context + selection
-		const pattern = contextBefore + selectedText;
-		const index = source.indexOf(pattern);
-
-		if (index === -1) return null;
-
-		// The selection starts after the context
-		const selectionStart = index + contextBefore.length;
-		return this.findTextPositionInSource(source, selectedText, selectionStart);
-	}
-
-	/**
-	 * Find the position of selected text in the raw markdown source.
-	 * Returns line/character positions for start and end.
-	 */
-	private findTextPositionInSource(
-		source: string,
-		selectedText: string,
-		startIndex?: number
-	): { startLine: number; startChar: number; endLine: number; endChar: number } | null {
-		// Find the selected text in the source
-		const index = startIndex !== undefined ? startIndex : source.indexOf(selectedText);
-		if (index === -1) {
-			return null;
-		}
-
-		// Convert character index to line/column
-		const beforeStart = source.substring(0, index);
-		const startLines = beforeStart.split('\n');
-		const startLine = startLines.length - 1;
-		const startChar = startLines[startLines.length - 1]?.length || 0;
-
-		const beforeEnd = source.substring(0, index + selectedText.length);
-		const endLines = beforeEnd.split('\n');
-		const endLine = endLines.length - 1;
-		const endChar = endLines[endLines.length - 1]?.length || 0;
-
-		return { startLine, startChar, endLine, endChar };
-	}
-
 	private getSelectionInElement(parentElement: HTMLElement): Selection | null {
 		const selection = window.getSelection();
 
@@ -450,7 +359,7 @@ export default class VaultCodePlugin extends Plugin {
 
 		const selection = editor?.getSelection() || null;
 		const cursor = editor?.getCursor() || null;
-		const filePath = file ? this.toFileUri(file.path) : null;
+		const filePath = file ? toFileUri(this.getVaultPath(), file.path) : null;
 
 		// Check if anything actually changed
 		if (!this.fileContextChanged(filePath, cursor, selection)) {
