@@ -1,12 +1,11 @@
 import {Editor, EditorPosition, MarkdownPreviewView, MarkdownView, Plugin, TFile} from "obsidian";
-import * as path from "path";
-import * as fs from "fs";
 import {TerminalView, VIEW_TYPE} from "./terminal-view";
 import {MCPServer} from "./mcp-server";
 import {cleanupStaleLockFiles} from "./mcp-lock-file";
 import {createAtMentionedNotification, createCodeRange, createSelectionChangedNotification,} from "./mcp-notifications";
 import {toFileUri} from "./utils/uri-utils";
 import {findTextInSection, findTextPositionInSource, findTextWithContext, getTextBeforeSelection} from "./selection/text-position-resolver";
+import {loadNerdFont, unloadNerdFont} from "./resources/font-loader";
 
 const SELECTION_NONE = {start: {line: 0, character: 0}, end: {line: 0, character: 0}};
 
@@ -19,7 +18,8 @@ export default class VaultCodePlugin extends Plugin {
 	private selectionPollInterval: ReturnType<typeof setInterval> | null = null;
 
 	async onload(): Promise<void> {
-		await this.loadNerdFont();
+		const basePath = (this.app.vault.adapter as { basePath?: string })?.basePath;
+		await loadNerdFont(this.manifest?.dir, basePath);
 		await this.startMCPServer();
 
 		this.registerView(VIEW_TYPE, (leaf) => new TerminalView(leaf, this));
@@ -152,8 +152,7 @@ export default class VaultCodePlugin extends Plugin {
 
 		// Don't detach leaves - Obsidian manages leaf lifecycle during plugin updates
 		// Remove injected font style
-		const fontStyle = document.getElementById("nerd-font-style");
-		if (fontStyle) fontStyle.remove();
+		unloadNerdFont();
 	}
 
 	/**
@@ -416,36 +415,6 @@ export default class VaultCodePlugin extends Plugin {
 			if (view instanceof TerminalView) {
 				view.focusTerminal();
 			}
-		}
-	}
-
-	private async loadNerdFont(): Promise<void> {
-		try {
-			const pluginDir = this.manifest?.dir;
-			const basePath = (this.app.vault.adapter as { basePath?: string })?.basePath;
-			if (!pluginDir || !basePath) return;
-
-			const fontPath = path.join(basePath, pluginDir, "symbols-nerd-font.woff2");
-			if (!fs.existsSync(fontPath)) return;
-
-			const fontData = fs.readFileSync(fontPath);
-			const fontB64 = fontData.toString("base64");
-
-			// eslint-disable-next-line obsidianmd/no-forbidden-elements -- Required for dynamic font loading
-			const style = document.createElement("style");
-			style.id = "nerd-font-style";
-			style.textContent = `
-				@font-face {
-					font-family: 'Symbols Nerd Font Mono';
-					src: url(data:font/woff2;base64,${fontB64}) format('woff2');
-					font-weight: normal;
-					font-style: normal;
-					font-display: swap;
-				}
-			`;
-			document.head.appendChild(style);
-		} catch {
-			// Font loading is optional - terminal works without it
 		}
 	}
 
