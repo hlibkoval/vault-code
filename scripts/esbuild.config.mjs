@@ -49,6 +49,7 @@ const context = await esbuild.context({
 		"@lezer/common",
 		"@lezer/highlight",
 		"@lezer/lr",
+		"ws", // External - will be loaded from plugin's node_modules at runtime
 		...builtinModules,
 	],
 	format: "cjs",

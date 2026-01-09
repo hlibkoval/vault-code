@@ -47,7 +47,7 @@ export class TerminalProcess {
 		const cmd = this.isWindows ? "python" : "python3";
 		const args = this.isWindows
 			? [ptyPath, String(cols), String(rows), shell]
-			: [ptyPath, String(cols), String(rows), shell, "-lc", "claude || true; exec $SHELL -i"];
+			: [ptyPath, String(cols), String(rows), shell, "-lc", "claude --ide || true; exec $SHELL -i"];
 
 		// Get PATH from user's login shell (GUI apps don't inherit shell config)
 		const shellEnv: typeof process.env = { ...process.env, TERM: "xterm-256color" };
@@ -97,7 +97,7 @@ export class TerminalProcess {
 		// Windows still needs auto-launch since we can't use exec there
 		if (this.isWindows) {
 			setTimeout(() => {
-				this.write("claude\r");
+				this.write("claude --ide\r");
 			}, 1000);
 		}
 	}
