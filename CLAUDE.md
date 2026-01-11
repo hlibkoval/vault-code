@@ -46,12 +46,37 @@ No automated tests. To test manually:
 
 ```
 src/
-├── main.ts              # Plugin lifecycle, commands, ribbon icon
-├── terminal-view.ts     # ItemView subclass with xterm.js UI
-├── terminal-process.ts  # PTY process management
-├── xterm-theme.ts       # Theme color extraction
-├── xterm-css.ts         # xterm.js CSS injection
-└── pty-scripts.ts       # PTY script base64 constants (generated at build)
+├── main.ts                    # Plugin lifecycle, commands, ribbon icon
+├── settings.ts                # Settings interface and settings tab
+├── interfaces/                # Shared interfaces
+│   ├── index.ts
+│   ├── notification-sender.ts # MCP notification sender interface
+│   └── vault-context.ts       # Vault context provider interface
+├── mcp/                       # MCP (Model Context Protocol) integration
+│   ├── mcp-server.ts          # WebSocket MCP server
+│   ├── mcp-integration.ts     # Facade coordinating MCP components
+│   ├── mcp-lock-file.ts       # Lock file management for discovery
+│   ├── mcp-notifications.ts   # Notification sender implementation
+│   ├── mcp-types.ts           # MCP protocol type definitions
+│   ├── line-marker-processor.ts # DOM line marker extraction
+│   └── selection/             # Selection tracking subsystem
+│       ├── index.ts
+│       ├── selection-tracker.ts      # Main tracker with polling
+│       ├── selection-strategy.ts     # Strategy interface
+│       ├── editor-selection-strategy.ts  # Markdown editor selection
+│       └── preview-selection-strategy.ts # Reading view selection
+├── terminal/
+│   ├── terminal-process.ts    # PTY process management
+│   └── pty-scripts.ts         # PTY script base64 constants (generated)
+├── theme/
+│   ├── xterm-theme.ts         # Theme color extraction
+│   └── xterm-css.ts           # xterm.js CSS injection
+├── view/
+│   ├── terminal-view.ts       # ItemView subclass with xterm.js UI
+│   ├── view-manager.ts        # View lifecycle management
+│   └── scroll-position-manager.ts # Scroll position tracking
+└── resources/
+    └── font-loader.ts         # Nerd Font loading
 
 scripts/
 ├── esbuild.config.mjs   # Build configuration with PTY embedding
@@ -66,15 +91,25 @@ scripts/
 - **VaultCodePlugin** (`src/main.ts`) - Main plugin class
   - Registers `TerminalView` view type
   - Adds ribbon icon and commands
-  - Loads Nerd Font for terminal icons
+  - Initializes MCP integration and settings
 
-- **TerminalView** (`src/terminal-view.ts`) - ItemView subclass
+- **Settings** (`src/settings.ts`) - Plugin configuration
+  - Settings interface with MCP toggle
+  - Settings tab UI with reconnection hints
+
+- **MCP Integration** (`src/mcp/`) - Claude Code IDE protocol
+  - WebSocket server implementing MCP over JSON-RPC 2.0
+  - Lock file creation for service discovery
+  - Selection tracking with strategy pattern (editor/preview modes)
+  - Sends `selection_changed` notifications to Claude Code CLI
+
+- **TerminalView** (`src/view/terminal-view.ts`) - ItemView subclass
   - xterm.js terminal initialization and UI
   - Resize handling with FitAddon
   - Theme sync with Obsidian
   - Escape key scope for terminal passthrough
 
-- **TerminalProcess** (`src/terminal-process.ts`) - PTY management
+- **TerminalProcess** (`src/terminal/terminal-process.ts`) - PTY management
   - Spawns Python PTY wrapper as child process
   - Handles stdin/stdout with proper UTF-8 decoding
   - Resize protocol via escape sequence `\x1b]RESIZE;cols;rows\x07`
