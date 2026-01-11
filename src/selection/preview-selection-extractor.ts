@@ -1,4 +1,4 @@
-import {App, MarkdownPreviewView, TFile} from "obsidian";
+import {App, MarkdownPreviewView} from "obsidian";
 import {LINE_END_ATTR, LINE_START_ATTR} from "../markdown/line-marker-processor";
 
 export interface PreviewSelectionResult {
@@ -22,13 +22,13 @@ type PositionInSource = { startLine: number; startChar: number; endLine: number;
  * to map preview selection back to source positions.
  */
 export class PreviewSelectionExtractor {
-	constructor(private app: App) {}
+	constructor(_app: App) {} // App preserved for API compatibility
 
 	/**
 	 * Extract selection position from preview mode.
 	 * Returns null if no selection or position cannot be determined.
 	 */
-	async extract(preview: MarkdownPreviewView, file: TFile): Promise<PreviewSelectionResult | null> {
+	async extract(preview: MarkdownPreviewView): Promise<PreviewSelectionResult | null> {
 		const selectionObj = this.getSelectionInElement(preview.containerEl);
 		const selectedText = selectionObj?.toString() || "";
 
@@ -74,8 +74,8 @@ export class PreviewSelectionExtractor {
 
 		// drop empty lines at the end
 		for (let i = match.length - 1; i >= 0; i--) {
-			const curMatch = match[i]!!;
-			if (curMatch.length == 0) {
+			const curMatch = match[i];
+			if (!curMatch || curMatch.length === 0) {
 				endLine--;
 			} else {
 				endOffset = curMatch.length - 1;

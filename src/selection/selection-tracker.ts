@@ -105,7 +105,7 @@ export class SelectionTracker {
 		this.lastCursor = null;
 
 		// Extract position using the dedicated extractor
-		const result = await this.previewExtractor.extract(preview, file);
+		const result = await this.previewExtractor.extract(preview);
 
 		if (!result) {
 			// No selection - send empty selection notification
