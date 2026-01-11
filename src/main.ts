@@ -7,6 +7,7 @@ import {createAtMentionedNotification} from "./mcp/mcp-notifications";
 import {toFileUri} from "./utils/uri-utils";
 import {loadNerdFont, unloadNerdFont} from "./resources/font-loader";
 import {IVaultContext} from "./interfaces";
+import {registerLineMarkerProcessor} from "./markdown/line-marker-processor";
 
 export default class VaultCodePlugin extends Plugin implements IVaultContext {
 	private mcpIntegration: MCPIntegration | null = null;
@@ -20,6 +21,7 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 
 		this.registerView(VIEW_TYPE, (leaf) => new TerminalView(leaf, this));
 		this.viewManager = new ViewManager(this.app.workspace);
+		registerLineMarkerProcessor(this);
 
 		// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude is a brand name
 		this.addRibbonIcon("bot", "Open Claude", () => void this.viewManager.activateView());

@@ -1,5 +1,5 @@
 import {App, MarkdownPreviewView, TFile} from "obsidian";
-import {findTextInSection, findTextPositionInSource, findTextWithContext, getTextBeforeSelection} from "./text-position-resolver";
+import {LINE_END_ATTR, LINE_START_ATTR} from "../markdown/line-marker-processor";
 
 export interface PreviewSelectionResult {
 	startLine: number;
@@ -9,9 +9,17 @@ export interface PreviewSelectionResult {
 	selectedText: string;
 }
 
+interface LineMarker {
+	lineStart: number;
+	lineEnd: number;
+}
+
+type PositionInSource = { startLine: number; startChar: number; endLine: number; endChar: number };
+
 /**
  * Extracts selection position from markdown preview mode.
- * Uses DOM structure and section cache to map preview selection back to source positions.
+ * Uses line marker attributes added by registerLineMarkerProcessor
+ * to map preview selection back to source positions.
  */
 export class PreviewSelectionExtractor {
 	constructor(private app: App) {}
@@ -28,8 +36,7 @@ export class PreviewSelectionExtractor {
 			return null;
 		}
 
-		const source = await this.app.vault.cachedRead(file);
-		const position = this.findPositionInSource(preview, file, selectionObj, selectedText, source);
+		const position = this.findPositionInSource(selectionObj, selectedText);
 
 		if (!position) return null;
 
@@ -55,75 +62,68 @@ export class PreviewSelectionExtractor {
 		return selectionObj?.toString() || "";
 	}
 
-	private findPositionInSource(
-		preview: MarkdownPreviewView,
-		file: TFile,
-		selectionObj: Selection,
-		selectedText: string,
-		source: string,
-	): {startLine: number; startChar: number; endLine: number; endChar: number} | null {
+	private findPositionInSource(selectionObj: Selection, selectedText: string): PositionInSource | null {
 		const range = selectionObj.getRangeAt(0);
-		const cache = this.app.metadataCache.getFileCache(file);
-		const sections = cache?.sections || [];
+		const startMarker = this.findMarkerFromNode(range.startContainer);
+		const match = selectedText.match(/^.*$/gm);
 
-		// Try section-based matching first for precision
-		const sectionIndex = this.findSectionIndexFromDOM(preview.containerEl, range, file);
-		if (sectionIndex !== -1 && sectionIndex < sections.length) {
-			const section = sections[sectionIndex];
-			if (section) {
-				const pos = findTextInSection(source, selectedText, section.position);
-				if (pos) return pos;
-			}
-		}
+		if (!match || match.length < 1 || !startMarker) return null;
 
-		// Fallback: use context-based matching for uniqueness
-		const contextBefore = getTextBeforeSelection(preview.containerEl, range, 30);
-		const pos = findTextWithContext(source, selectedText, contextBefore);
-		if (pos) return pos;
+		let endOffset = range.endOffset;
+		let endLine = startMarker.lineStart + match.length - 1;
 
-		// Last resort: simple indexOf (first match)
-		return findTextPositionInSource(source, selectedText, 0);
-	}
-
-	/**
-	 * Find which section index corresponds to the DOM selection.
-	 * Returns -1 if not found.
-	 */
-	private findSectionIndexFromDOM(container: HTMLElement, range: Range, file: TFile): number {
-		// Get all block-level elements that correspond to sections
-		const blockSelector = ".el-p, .el-h1, .el-h2, .el-h3, .el-h4, .el-h5, .el-h6, .el-code, .el-blockquote, .el-table, .el-ul, .el-ol";
-		const blockElements = Array.from(container.querySelectorAll(blockSelector));
-
-		// Find which block element contains the selection
-		let selectedBlock: Element | null = null;
-		for (const el of blockElements) {
-			if (el.contains(range.commonAncestorContainer)) {
-				selectedBlock = el;
+		// drop empty lines at the end
+		for (let i = match.length - 1; i >= 0; i--) {
+			const curMatch = match[i]!!;
+			if (curMatch.length == 0) {
+				endLine--;
+			} else {
+				endOffset = curMatch.length - 1;
 				break;
 			}
 		}
 
-		if (!selectedBlock) return -1;
-
-		// Find the index of this block among all blocks
-		const blockIndex = blockElements.indexOf(selectedBlock);
-
-		// Account for frontmatter (yaml section) which doesn't render in preview
-		// The sections array includes frontmatter as the first section if present
-		const cache = this.app.metadataCache.getFileCache(file);
-		const hasFrontmatter = cache?.frontmatter !== undefined;
-
-		return hasFrontmatter ? blockIndex + 1 : blockIndex;
+		return {
+			startLine: startMarker.lineStart,
+			startChar: range.startOffset,
+			endLine: endLine,
+			endChar: endOffset,
+		};
 	}
 
+	/**
+	 * Find line marker attributes by traversing up from a node.
+	 */
+	private findMarkerFromNode(node: Node): LineMarker | null {
+		let el: HTMLElement | null = node.nodeType === Node.ELEMENT_NODE
+			? node as HTMLElement
+			: node.parentElement;
+
+		while (el && !el.hasAttribute(LINE_START_ATTR)) {
+			el = el.parentElement;
+		}
+
+		if (!el) return null;
+
+		const lineStartAttr = el.getAttribute(LINE_START_ATTR);
+		const lineEndAttr = el.getAttribute(LINE_END_ATTR);
+		if (!lineStartAttr || !lineEndAttr) return null;
+
+		return {
+			lineStart: parseInt(lineStartAttr, 10),
+			lineEnd: parseInt(lineEndAttr, 10),
+		};
+	}
+
+	/**
+	 * Get selection object if it's within the specified element.
+	 */
 	private getSelectionInElement(parentElement: HTMLElement): Selection | null {
 		const selection = window.getSelection();
 
-		// Check if any text is actually selected
 		if (selection && selection.rangeCount > 0) {
 			const range = selection.getRangeAt(0);
 
-			// Check if the selected range is contained within the specific element
 			if (parentElement && parentElement.contains(range.commonAncestorContainer)) {
 				return selection;
 			}
@@ -131,4 +131,5 @@ export class PreviewSelectionExtractor {
 
 		return null;
 	}
+
 }

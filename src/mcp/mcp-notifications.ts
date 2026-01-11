@@ -26,8 +26,6 @@ export function createSelectionChangedNotification(
 		filePath,
 	};
 
-
-
 	console.debug(`Selection changed: `, params);
 
 	return {

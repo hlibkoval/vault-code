@@ -40,7 +40,7 @@ export class SelectionTracker {
 	start(): void {
 		this.pollInterval = setInterval(() => {
 			this.pollSelectionChange();
-		}, 200);
+		}, 500);
 	}
 
 	/**
