@@ -15,8 +15,8 @@ export default defineConfig({
 				// Plugin lifecycle - integration test scope
 				"src/main.ts",
 				"src/settings.ts",
-				// PTY - requires real Node child processes (can't mock built-ins)
-				"src/terminal/**",
+				// PTY scripts - generated base64 constants, no logic
+				"src/terminal/pty-scripts.ts",
 				// Font loading - browser-only
 				"src/resources/**",
 				// Type definitions - no logic

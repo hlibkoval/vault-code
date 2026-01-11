@@ -4,10 +4,12 @@ import {VIEW_TYPE} from "./view/terminal-view";
 
 export interface VaultCodeSettings {
 	mcpEnabled: boolean;
+	continueLastConversation: boolean;
 }
 
 export const DEFAULT_SETTINGS: VaultCodeSettings = {
 	mcpEnabled: true,
+	continueLastConversation: false,
 };
 
 export class VaultCodeSettingTab extends PluginSettingTab {
@@ -27,7 +29,7 @@ export class VaultCodeSettingTab extends PluginSettingTab {
 			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude Code is a brand name
 			.setName("Send Obsidian context to Claude Code")
 			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude Code is a brand name
-			.setDesc("Automatically sends your current text selection to Claude Code so it knows what you're working on. Also enables the \"Send to Claude Code\" command for explicit @-mentions.")
+			.setDesc("Send current file and selection changes to Claude Code via IDE MCP integration (--ide flag). Enable \"Send to Claude Code\" context menu.")
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.mcpEnabled)
@@ -43,6 +45,19 @@ export class VaultCodeSettingTab extends PluginSettingTab {
 						} else {
 							this.hideHint();
 						}
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Continue the last conversation")
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude Code is a brand name
+			.setDesc("Pass --continue flag to the first started Claude Code, resuming the previous conversation.")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.continueLastConversation)
+					.onChange(async (value) => {
+						this.plugin.settings.continueLastConversation = value;
+						await this.plugin.saveSettings();
 					})
 			);
 	}

@@ -10,6 +10,7 @@ Run [Claude Code](https://claude.com/claude-code) in your Obsidian sidebar with 
 - **Auto-launches Claude** - Claude Code starts automatically
 - **Multiple tabs** – Run multiple Claude instances side by side
 - **Obsidian → Claude Code integration** (optional) – Claude Code gets the current context from Obsidian (open file, selected lines) automatically over `/ide` MCP integration (inspired by Claude Code plugin for Intellij IDEA) 
+- **Continue the last conversation** (optional) – continue working with Claude Code from where you left off automatically
 
 ## Requirements
 
@@ -61,6 +62,13 @@ https://github.com/user-attachments/assets/de98439a-8a1f-4a8a-9d02-44027d756462
   - **Toggle Focus: Editor ↔ Claude** - Quick switch between editor and Claude
 - Press `Shift+Enter` for multi-line input
 - Set your own hotkeys in Settings → Hotkeys
+
+### Settings
+
+| Setting | Description |
+|---------|-------------|
+| **Send Obsidian context to Claude Code** | Send current file and selection changes to Claude Code via IDE MCP integration (`--ide` flag). Enable "Send to Claude Code" context menu. |
+| **Continue the last conversation** | Pass `--continue` flag to the first started Claude Code, resuming the previous conversation. |
 
 ## Platform Support
 

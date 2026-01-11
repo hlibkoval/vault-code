@@ -1,4 +1,4 @@
-import { spawn, execSync, ChildProcess } from "child_process";
+import { spawn, execSync, ChildProcess, SpawnOptionsWithoutStdio } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
@@ -6,56 +6,100 @@ import { StringDecoder } from "string_decoder";
 import type { Terminal } from "@xterm/xterm";
 import { PTY_SCRIPT_B64, WIN_PTY_SCRIPT_B64 } from "./pty-scripts";
 
+export interface ClaudeCommandOptions {
+	useIdeFlag: boolean; // --ide for MCP integration
+	continueSession: boolean; // --continue for resuming last conversation
+}
+
 export interface TerminalProcessOptions {
 	cwd: string;
 	cols: number;
 	rows: number;
-	useIdeFlag: boolean;
+	claudeOptions: ClaudeCommandOptions;
 	onData: (data: string) => void;
 	onExit: (code: number | null, signal: string | null) => void;
 	onError: (err: Error) => void;
 }
 
+/**
+ * Dependencies that can be injected for testing.
+ */
+export interface TerminalProcessDeps {
+	platform: typeof process.platform;
+	spawn: (command: string, args: string[], options: SpawnOptionsWithoutStdio) => ChildProcess;
+	execSync: (command: string, options: { encoding: "utf8"; timeout: number }) => string;
+	writeFileSync: (path: string, data: string, options: { mode: number }) => void;
+	tmpdir: () => string;
+	env: typeof process.env;
+}
+
+/**
+ * Default dependencies using real Node.js modules.
+ */
+export const defaultDeps: TerminalProcessDeps = {
+	platform: process.platform,
+	spawn,
+	execSync,
+	writeFileSync: fs.writeFileSync,
+	tmpdir: os.tmpdir,
+	env: process.env,
+};
+
 export class TerminalProcess {
 	private proc: ChildProcess | null = null;
 	private stdoutDecoder: StringDecoder | null = null;
 	private stderrDecoder: StringDecoder | null = null;
-	private isWindows: boolean;
+	private readonly isWindows: boolean;
+	private readonly deps: TerminalProcessDeps;
 
-	constructor() {
-		this.isWindows = process.platform === "win32";
+	constructor(deps: TerminalProcessDeps = defaultDeps) {
+		this.deps = deps;
+		this.isWindows = deps.platform === "win32";
+	}
+
+	/**
+	 * Build the Claude CLI command string from options.
+	 */
+	buildClaudeCommand(options: ClaudeCommandOptions): string {
+		const args: string[] = [];
+		if (options.useIdeFlag) args.push("--ide");
+		if (options.continueSession) args.push("--continue");
+		return args.length > 0 ? `claude ${args.join(" ")}` : "claude";
 	}
 
 	start(options: TerminalProcessOptions): void {
 		this.stop();
 
-		const { cwd, cols, rows, useIdeFlag, onData, onExit, onError } = options;
+		const { cwd, cols, rows, claudeOptions, onData, onExit, onError } = options;
 
 		const shell = this.isWindows
-			? process.env.COMSPEC || "cmd.exe"
-			: process.env.SHELL || "/bin/bash";
+			? this.deps.env.COMSPEC || "cmd.exe"
+			: this.deps.env.SHELL || "/bin/bash";
 
 		// Decode and write PTY script to temp file
 		const scriptB64 = this.isWindows ? WIN_PTY_SCRIPT_B64 : PTY_SCRIPT_B64;
 		const scriptName = this.isWindows ? "claude_sidebar_win.py" : "claude_sidebar_pty.py";
-		const ptyPath = path.join(os.tmpdir(), scriptName);
+		const ptyPath = path.join(this.deps.tmpdir(), scriptName);
 
 		// Always write to ensure current version (overwrites stale cached copies)
 		const ptyScript = Buffer.from(scriptB64, "base64").toString("utf-8");
-		fs.writeFileSync(ptyPath, ptyScript, { mode: 0o755 });
+		this.deps.writeFileSync(ptyPath, ptyScript, { mode: 0o755 });
 
 		// Use 'python' on Windows (works with both python.org and Microsoft Store installs)
 		const cmd = this.isWindows ? "python" : "python3";
-		const claudeCmd = useIdeFlag ? "claude --ide" : "claude";
+
+		// Build claude command with optional flags
+		const claudeCmd = this.buildClaudeCommand(claudeOptions);
+
 		const args = this.isWindows
 			? [ptyPath, String(cols), String(rows), shell]
 			: [ptyPath, String(cols), String(rows), shell, "-lc", `${claudeCmd} || true; exec $SHELL -i`];
 
 		// Get PATH from user's login shell (GUI apps don't inherit shell config)
-		const shellEnv: typeof process.env = { ...process.env, TERM: "xterm-256color" };
+		const shellEnv: typeof process.env = { ...this.deps.env, TERM: "xterm-256color" };
 		if (!this.isWindows) {
 			try {
-				const shellOutput = execSync(`${shell} -lic 'echo "__PATH__"; echo "$PATH"'`, {
+				const shellOutput = this.deps.execSync(`${shell} -lic 'echo "__PATH__"; echo "$PATH"'`, {
 					encoding: "utf8",
 					timeout: 2000,
 				});
@@ -69,7 +113,7 @@ export class TerminalProcess {
 			}
 		}
 
-		this.proc = spawn(cmd, args, {
+		this.proc = this.deps.spawn(cmd, args, {
 			cwd,
 			env: shellEnv,
 			stdio: ["pipe", "pipe", "pipe"],
@@ -138,7 +182,7 @@ export class TerminalProcess {
 	}
 
 	get platform(): "win32" | "darwin" | "linux" {
-		return this.isWindows ? "win32" : (process.platform as "darwin" | "linux");
+		return this.isWindows ? "win32" : (this.deps.platform as "darwin" | "linux");
 	}
 }
 
