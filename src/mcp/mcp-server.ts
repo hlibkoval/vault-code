@@ -450,6 +450,10 @@ export class MCPServer {
 	 * Send a WebSocket frame.
 	 */
 	private sendFrame(socket: Socket, opcode: number, payload: Buffer): void {
+		if (socket.destroyed || !socket.writable || socket.readableEnded) {
+			return;
+		}
+
 		const payloadLen = payload.length;
 		let header: Buffer;
 
