@@ -2,6 +2,16 @@
 
 All notable changes to Vault Code will be documented in this file.
 
+## [0.2.0] - 2025-01-12
+
+### Added
+- Continue last conversation setting: opt-in toggle to resume previous Claude Code session on startup
+- Context menu actions: right-click files/folders in the file explorer to send them to Claude Code
+- Vitest test infrastructure with 250 tests and 94%+ code coverage
+
+### Fixed
+- `--ide` flag now only added when MCP integration is enabled (previously always added)
+
 ## [0.1.0] - 2025-01-11
 
 ### Added
