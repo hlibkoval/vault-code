@@ -62,6 +62,13 @@ https://github.com/user-attachments/assets/de98439a-8a1f-4a8a-9d02-44027d756462
 - Press `Shift+Enter` for multi-line input
 - Set your own hotkeys in Settings → Hotkeys
 
+### Settings
+
+| Setting | Description |
+|---------|-------------|
+| **Send Obsidian context to Claude Code** | Enables MCP integration (`--ide` flag). Sends selection changes to Claude Code via WebSocket. Enables "Send to Claude Code" context menu. |
+| **Continue last conversation** | Passes `--continue` flag to first opened sidebar, resuming the previous conversation. |
+
 ## Platform Support
 
 | Platform | Status |
