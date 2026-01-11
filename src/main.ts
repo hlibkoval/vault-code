@@ -7,20 +7,35 @@ import {createAtMentionedNotification, toFileUri} from "./mcp/mcp-notifications"
 import {loadNerdFont, unloadNerdFont} from "./resources/font-loader";
 import {IVaultContext} from "./interfaces";
 import {registerLineMarkerProcessor} from "./mcp/line-marker-processor";
+import {DEFAULT_SETTINGS, VaultCodeSettingTab, VaultCodeSettings} from "./settings";
 
 export default class VaultCodePlugin extends Plugin implements IVaultContext {
+	settings!: VaultCodeSettings;
 	private mcpIntegration: MCPIntegration | null = null;
 	private viewManager!: ViewManager;
 	private selectionTracker: SelectionTracker | null = null;
 
 	async onload(): Promise<void> {
+		// Load settings first
+		await this.loadSettings();
+		this.addSettingTab(new VaultCodeSettingTab(this.app, this));
+
 		const basePath = (this.app.vault.adapter as { basePath?: string })?.basePath;
 		await loadNerdFont(this.manifest?.dir, basePath);
-		await this.startMCPServer();
 
 		this.registerView(VIEW_TYPE, (leaf) => new TerminalView(leaf, this));
 		this.viewManager = new ViewManager(this.app.workspace);
-		registerLineMarkerProcessor(this);
+
+		// Register line marker processor (checks enabled flag internally)
+		registerLineMarkerProcessor(this, () => this.settings.mcpEnabled);
+
+		// Gate MCP initialization
+		if (this.settings.mcpEnabled) {
+			console.debug("[Vault Code] MCP integration enabled, starting server");
+			await this.startMCPServer();
+		} else {
+			console.debug("[Vault Code] MCP integration disabled");
+		}
 
 		// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude is a brand name
 		this.addRibbonIcon("bot", "Open Claude", () => void this.viewManager.activateView());
@@ -67,8 +82,10 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 			editorCallback: (editor, ctx) => this.sendToClaudeCode(editor, ctx.file),
 		});
 
-		// Start selection tracking
-		this.startSelectionTracking();
+		// Start selection tracking (only if MCP is enabled)
+		if (this.settings.mcpEnabled) {
+			this.startSelectionTracking();
+		}
 	}
 
 	onunload(): void {
@@ -153,5 +170,32 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 		);
 
 		this.viewManager.focusTerminal();
+	}
+
+	async loadSettings(): Promise<void> {
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<VaultCodeSettings>);
+	}
+
+	async saveSettings(): Promise<void> {
+		await this.saveData(this.settings);
+	}
+
+	/**
+	 * Apply MCP setting change at runtime.
+	 */
+	async applyMcpSetting(enabled: boolean): Promise<void> {
+		if (enabled) {
+			if (!this.mcpIntegration) {
+				console.debug("[Vault Code] Starting MCP integration");
+				await this.startMCPServer();
+				this.startSelectionTracking();
+			}
+		} else {
+			console.debug("[Vault Code] Stopping MCP integration");
+			this.selectionTracker?.stop();
+			this.selectionTracker = null;
+			this.mcpIntegration?.stop();
+			this.mcpIntegration = null;
+		}
 	}
 }
