@@ -29,7 +29,7 @@ export class VaultCodeSettingTab extends PluginSettingTab {
 			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude Code is a brand name
 			.setName("Send Obsidian context to Claude Code")
 			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude Code is a brand name
-			.setDesc("Enables MCP integration (--ide flag). Sends selection changes to Claude Code via WebSocket. Enables \"Send to Claude Code\" context menu.")
+			.setDesc("Send current file and selection changes to Claude Code via IDE MCP integration (--ide flag). Enable \"Send to Claude Code\" context menu.")
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.mcpEnabled)
@@ -49,8 +49,8 @@ export class VaultCodeSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Continue last conversation")
-			.setDesc("Passes --continue flag to first opened sidebar, resuming the previous conversation.")
+			.setName("Continue the last conversation")
+			.setDesc("Pass --continue flag to the first started Claude Code, resuming the previous conversation.")
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.continueLastConversation)

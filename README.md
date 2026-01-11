@@ -66,8 +66,8 @@ https://github.com/user-attachments/assets/de98439a-8a1f-4a8a-9d02-44027d756462
 
 | Setting | Description |
 |---------|-------------|
-| **Send Obsidian context to Claude Code** | Enables MCP integration (`--ide` flag). Sends selection changes to Claude Code via WebSocket. Enables "Send to Claude Code" context menu. |
-| **Continue last conversation** | Passes `--continue` flag to first opened sidebar, resuming the previous conversation. |
+| **Send Obsidian context to Claude Code** | Send current file and selection changes to Claude Code via IDE MCP integration (`--ide` flag). Enable "Send to Claude Code" context menu. |
+| **Continue the last conversation** | Pass `--continue` flag to the first started Claude Code, resuming the previous conversation. |
 
 ## Platform Support
 
