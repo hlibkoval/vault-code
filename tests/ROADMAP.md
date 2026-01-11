@@ -89,7 +89,7 @@ WebSocket MCP server with real WebSocket client testing.
 - [x] Keepalive - ping/pong mechanism
 - [x] Server shutdown - graceful close with active connections
 
-### terminal-process.ts 🔲
+### terminal-process.ts ⛔ DEFERRED
 
 - [ ] Process startup (Unix vs Windows)
 - [ ] Stdin/stdout piping with StringDecoder
@@ -98,29 +98,34 @@ WebSocket MCP server with real WebSocket client testing.
 - [ ] Process termination and cleanup
 - [ ] Platform detection
 
-**Note:** terminal-process.ts requires:
-- Real Python interpreter and pty module
-- Platform-specific test handling
-- Child process mocking or integration testing
+**Note:** terminal-process.ts cannot be unit tested because:
+- Node.js built-in modules (child_process, fs, os) have non-configurable properties
+- vi.mock and vi.spyOn cannot override spawn/execSync
+- Requires integration testing with real Python PTY scripts
 
-## Phase 4: P3 - Integration/E2E 🔲
+## Phase 4: P3 - Integration/E2E (Partial) ✅
 
 Modules tightly coupled to Obsidian or requiring complex setup.
 
-### selection-tracker.ts
-- [ ] Polling interval management
-- [ ] View mode detection (editor vs preview)
-- [ ] Selection change deduplication
-- [ ] Initial selection notification delay
-- [ ] Strategy delegation
+### selection-tracker.ts (21 tests) ✅
+- [x] Constructor initialization
+- [x] start/stop polling lifecycle (500ms interval)
+- [x] Polling with hasConnectedClients check
+- [x] View mode detection (editor vs preview strategy)
+- [x] Selection change deduplication (same file+selection)
+- [x] notifySelectionChanged immediate and delayed modes
+- [x] Skip when no active MarkdownView or no file
 
-### mcp-integration.ts
-- [ ] Server startup with error handling
-- [ ] Stale lock file cleanup
-- [ ] Notification forwarding
-- [ ] Graceful stop/dispose
+### mcp-integration.ts (17 tests) ✅
+- [x] Constructor and initialization
+- [x] start() - cleanup stale locks, create MCPServer, delegate start
+- [x] start() - error handling (logs but doesn't throw)
+- [x] start() - empty vaultPath early return
+- [x] stop() - delegate to server, null safety, idempotent
+- [x] sendNotification() - delegate to server, null safety
+- [x] hasConnectedClients() - delegate to server, return false when null
 
-### terminal-view.ts
+### terminal-view.ts ⛔ DEFERRED
 - [ ] Terminal initialization (FitAddon, theme colors)
 - [ ] Key handling (Escape, Shift+Enter, Cmd+Arrow)
 - [ ] Theme change observation
@@ -128,15 +133,17 @@ Modules tightly coupled to Obsidian or requiring complex setup.
 - [ ] Focus scope management
 - [ ] Cleanup/disposal
 
-### view-manager.ts
-- [ ] Terminal/editor focus toggling
-- [ ] New tab creation
-- [ ] Existing view activation
+**Note:** terminal-view.ts deferred due to xterm.js complexity and DOM requirements.
 
-**Note:** These tests likely require:
-- Obsidian API mocking at a deeper level
-- xterm.js mocking
-- DOM environment with MutationObserver/ResizeObserver
+### view-manager.ts (16 tests) ✅
+- [x] toggleFocus() - switch between editor and Claude terminal
+- [x] toggleFocus() - no leaves, TerminalView leaf, non-TerminalView leaf
+- [x] focusTerminal() - focus first TerminalView leaf
+- [x] focusTerminal() - no leaves, no TerminalView leaves
+- [x] activateView() - show existing or create new Claude view
+- [x] activateView() - existing leaf, no existing leaf
+- [x] createNewTab() - create terminal in right sidebar
+- [x] createNewTab() - null sidebar handling
 
 ## Excluded from Testing
 
@@ -156,12 +163,12 @@ These modules are explicitly excluded from test coverage:
 
 | Metric | Value |
 |--------|-------|
-| Test Files | 8 |
-| Tests | 156 |
-| Statements | 90.54% |
-| Branches | 90.73% |
-| Functions | 97.67% |
-| Lines | 90.54% |
+| Test Files | 11 |
+| Tests | 210 |
+| Statements | 92.04% |
+| Branches | 92.36% |
+| Functions | 98.43% |
+| Lines | 92.04% |
 
 ### Coverage by Module
 
@@ -171,10 +178,13 @@ These modules are explicitly excluded from test coverage:
 | mcp-notifications.ts | 100% |
 | mcp-lock-file.ts | 96.47% |
 | mcp-server.ts | 84.52% |
+| mcp-integration.ts | 100% |
+| selection-tracker.ts | 97.77% |
 | xterm-theme.ts | 100% |
 | scroll-position-manager.ts | 100% |
 | editor-selection-strategy.ts | 100% |
 | preview-selection-strategy.ts | 97.67% |
+| view-manager.ts | 100% |
 
 ## Running Tests
 

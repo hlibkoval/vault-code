@@ -15,19 +15,16 @@ export default defineConfig({
 				// Plugin lifecycle - integration test scope
 				"src/main.ts",
 				"src/settings.ts",
-				// PTY - requires real Node child processes
+				// PTY - requires real Node child processes (can't mock built-ins)
 				"src/terminal/**",
 				// Font loading - browser-only
 				"src/resources/**",
-				// MCP integration facade - P3
-				"src/mcp/mcp-integration.ts",
+				// Type definitions - no logic
 				"src/mcp/mcp-types.ts",
-				// Selection tracker - polling complexity, P3
-				"src/mcp/selection/selection-tracker.ts",
+				// Re-export barrel - no logic
 				"src/mcp/selection/index.ts",
-				// View manager - Obsidian workspace integration, P3
+				// Terminal view - xterm.js/DOM complexity, deferred
 				"src/view/terminal-view.ts",
-				"src/view/view-manager.ts",
 				// Theme CSS injection - runtime only
 				"src/theme/xterm-css.ts",
 				// Interface definitions - no logic
