@@ -1,6 +1,6 @@
 # Vault Code
 
-Run [Claude Code](https://claude.com/claude-code) in your Obsidian sidebar.
+Run [Claude Code](https://claude.com/claude-code) in your Obsidian sidebar with automatic Obsidian context sharing.
 
 ![Vault Code](docs/screenshot-obsidian.png)
 
