@@ -19,14 +19,13 @@ export default defineConfig({
 				"src/terminal/**",
 				// Font loading - browser-only
 				"src/resources/**",
-				// MCP server - WebSocket complexity, P2
-				"src/mcp/mcp-server.ts",
+				// MCP integration facade - P3
 				"src/mcp/mcp-integration.ts",
 				"src/mcp/mcp-types.ts",
 				// Selection tracker - polling complexity, P3
 				"src/mcp/selection/selection-tracker.ts",
 				"src/mcp/selection/index.ts",
-				// View manager - Obsidian workspace integration
+				// View manager - Obsidian workspace integration, P3
 				"src/view/terminal-view.ts",
 				"src/view/view-manager.ts",
 				// Theme CSS injection - runtime only

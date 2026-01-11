@@ -64,21 +64,33 @@ Test modules requiring mocks but with moderate complexity.
 - [x] `extractSelection` - no selection, collapsed, outside container, with markers, no markers, parent markers, partial markers, line 0
 - [x] `getSelectedText` - basic, empty, outside container
 
-## Phase 3: P2 - Integration Tests 🔲
+## Phase 3: P2 - Integration Tests (Partial) ✅
 
 Complex modules requiring significant mocking or real dependencies.
 
-### mcp-server.ts
-- [ ] WebSocket handshake validation
-- [ ] Frame parsing (text, ping, close, masked/unmasked)
-- [ ] Auth token verification
-- [ ] Message routing (initialize, tools/list, resources/list, prompts/list)
-- [ ] Keepalive ping/pong mechanism
-- [ ] Multiple client handling
-- [ ] Graceful shutdown
-- [ ] Error handling
+### ws-frames.ts (36 tests) ✅ NEW
 
-### terminal-process.ts
+Extracted WebSocket frame utilities for direct unit testing.
+
+- [x] `parseFrames` - small/medium/large payloads, masked/unmasked, incomplete frames, multiple frames
+- [x] `createFrame` - small/medium/large payloads, all opcodes, round-trip validation
+- [x] `createCloseFrame` - codes, reasons, UTF-8 handling
+- [x] Constants - opcodes, WebSocket GUID
+
+### mcp-server.ts (32 tests) ✅
+
+WebSocket MCP server with real WebSocket client testing.
+
+- [x] Server lifecycle - start, stop, lock file creation/deletion, restart
+- [x] WebSocket handshake - valid auth, invalid auth, wrong protocol, invalid path
+- [x] MCP protocol - initialize, tools/list, resources/list, prompts/list, ping
+- [x] Notifications - sendNotification, broadcast to multiple clients
+- [x] Client management - connect, disconnect, multiple clients
+- [x] Keepalive - ping/pong mechanism
+- [x] Server shutdown - graceful close with active connections
+
+### terminal-process.ts 🔲
+
 - [ ] Process startup (Unix vs Windows)
 - [ ] Stdin/stdout piping with StringDecoder
 - [ ] UTF-8 boundary handling
@@ -86,10 +98,10 @@ Complex modules requiring significant mocking or real dependencies.
 - [ ] Process termination and cleanup
 - [ ] Platform detection
 
-**Note:** These tests may require:
-- Real WebSocket connections (use ws package for test client)
+**Note:** terminal-process.ts requires:
+- Real Python interpreter and pty module
+- Platform-specific test handling
 - Child process mocking or integration testing
-- Platform-specific test skipping
 
 ## Phase 4: P3 - Integration/E2E 🔲
 
@@ -144,12 +156,25 @@ These modules are explicitly excluded from test coverage:
 
 | Metric | Value |
 |--------|-------|
-| Test Files | 6 |
-| Tests | 88 |
-| Statements | 94.84% |
-| Branches | 95.87% |
-| Functions | 96.29% |
-| Lines | 94.84% |
+| Test Files | 8 |
+| Tests | 156 |
+| Statements | 90.54% |
+| Branches | 90.73% |
+| Functions | 97.67% |
+| Lines | 90.54% |
+
+### Coverage by Module
+
+| Module | Coverage |
+|--------|----------|
+| ws-frames.ts | 100% |
+| mcp-notifications.ts | 100% |
+| mcp-lock-file.ts | 96.47% |
+| mcp-server.ts | 84.52% |
+| xterm-theme.ts | 100% |
+| scroll-position-manager.ts | 100% |
+| editor-selection-strategy.ts | 100% |
+| preview-selection-strategy.ts | 97.67% |
 
 ## Running Tests
 
