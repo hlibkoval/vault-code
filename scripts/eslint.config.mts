@@ -29,5 +29,7 @@ export default tseslint.config(
 		"versions.json",
 		"main.js",
 		"scripts/",
+		// Test files - validated by vitest, not eslint
+		"tests/",
 	])
 );

@@ -16,7 +16,7 @@ export function getThemeColors(): ITheme {
 	};
 }
 
-function hexToRgba(hex: string, alpha: number): string {
+export function hexToRgba(hex: string, alpha: number): string {
 	// Handle rgb/rgba passthrough
 	if (hex.startsWith("rgb")) return hex;
 	// Parse hex color
