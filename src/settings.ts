@@ -4,10 +4,12 @@ import {VIEW_TYPE} from "./view/terminal-view";
 
 export interface VaultCodeSettings {
 	mcpEnabled: boolean;
+	continueLastConversation: boolean;
 }
 
 export const DEFAULT_SETTINGS: VaultCodeSettings = {
 	mcpEnabled: true,
+	continueLastConversation: false,
 };
 
 export class VaultCodeSettingTab extends PluginSettingTab {
@@ -43,6 +45,19 @@ export class VaultCodeSettingTab extends PluginSettingTab {
 						} else {
 							this.hideHint();
 						}
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Continue last conversation")
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude Code is a brand name
+			.setDesc("The first opened Claude Code sidebar will continue the last conversation")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.continueLastConversation)
+					.onChange(async (value) => {
+						this.plugin.settings.continueLastConversation = value;
+						await this.plugin.saveSettings();
 					})
 			);
 	}

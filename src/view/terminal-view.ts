@@ -3,7 +3,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { getThemeColors } from "../theme/xterm-theme";
 import { injectXtermCSS } from "../theme/xterm-css";
-import { TerminalProcess, connectTerminalToProcess } from "../terminal/terminal-process";
+import { TerminalProcess, connectTerminalToProcess, ClaudeCommandOptions } from "../terminal/terminal-process";
 import { ScrollPositionManager } from "./scroll-position-manager";
 import type VaultCodePlugin from "../main";
 
@@ -197,13 +197,24 @@ export class TerminalView extends ItemView {
 		const cols = this.term.cols || 80;
 		const rows = this.term.rows || 24;
 
+		// Check if this is the first/only session
+		// By the time startShell() runs (called from onOpen), our leaf is already in the workspace
+		// So "first session" means we're the only Claude terminal leaf
+		const existingLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
+		const isFirstSession = existingLeaves.length === 1;
+
+		const claudeOptions: ClaudeCommandOptions = {
+			useIdeFlag: this.plugin.settings.mcpEnabled,
+			continueSession: this.plugin.settings.continueLastConversation && isFirstSession,
+		};
+
 		connectTerminalToProcess(this.term, this.termProcess);
 
 		this.termProcess.start({
 			cwd,
 			cols,
 			rows,
-			useIdeFlag: this.plugin.settings.mcpEnabled,
+			claudeOptions,
 			onData: (data) => {
 				this.term?.write(data);
 			},

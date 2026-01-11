@@ -89,19 +89,21 @@ WebSocket MCP server with real WebSocket client testing.
 - [x] Keepalive - ping/pong mechanism
 - [x] Server shutdown - graceful close with active connections
 
-### terminal-process.ts ⛔ DEFERRED
+### terminal-process.ts (29 tests) ✅
 
-- [ ] Process startup (Unix vs Windows)
-- [ ] Stdin/stdout piping with StringDecoder
-- [ ] UTF-8 boundary handling
-- [ ] Resize sequence encoding/transmission
-- [ ] Process termination and cleanup
-- [ ] Platform detection
+Refactored to use dependency injection for testability.
 
-**Note:** terminal-process.ts cannot be unit tested because:
-- Node.js built-in modules (child_process, fs, os) have non-configurable properties
-- vi.mock and vi.spyOn cannot override spawn/execSync
-- Requires integration testing with real Python PTY scripts
+- [x] `buildClaudeCommand` - no flags, --ide only, --continue only, both flags
+- [x] Constructor - platform detection (Windows, macOS, Linux)
+- [x] `start()` - PTY script writing, spawn command (python/python3), shell detection
+- [x] `start()` - claude command flags in Unix args (--ide, --continue, both)
+- [x] `start()` - PATH extraction on Unix, skipped on Windows
+- [x] `start()` - callbacks (onData, onExit, onError)
+- [x] `start()` - environment variable usage (SHELL, COMSPEC)
+- [x] `write()` - writes to process stdin, safe when not running
+- [x] `resize()` - sends resize escape sequence
+- [x] `stop()` - kills process with SIGTERM, safe to call when not running
+- [x] `isRunning` - false when not started, true when running, false after exit
 
 ## Phase 4: P3 - Integration/E2E (Partial) ✅
 
@@ -153,7 +155,7 @@ These modules are explicitly excluded from test coverage:
 |--------|--------|
 | `src/main.ts` | Plugin lifecycle, integration scope |
 | `src/settings.ts` | Settings UI, integration scope |
-| `src/terminal/**` | PTY requires real Node child processes |
+| `src/terminal/pty-scripts.ts` | Generated base64 constants, no logic |
 | `src/resources/**` | Font loading, browser-only |
 | `src/mcp/mcp-types.ts` | Type definitions only |
 | `src/theme/xterm-css.ts` | CSS injection, runtime only |
@@ -163,12 +165,12 @@ These modules are explicitly excluded from test coverage:
 
 | Metric | Value |
 |--------|-------|
-| Test Files | 11 |
-| Tests | 221 |
-| Statements | 94.11% |
-| Branches | 95.23% |
-| Functions | 98.43% |
-| Lines | 94.11% |
+| Test Files | 12 |
+| Tests | 250 |
+| Statements | 92.84% |
+| Branches | 95.19% |
+| Functions | 97.26% |
+| Lines | 92.84% |
 
 ### Coverage by Module
 
@@ -185,11 +187,16 @@ These modules are explicitly excluded from test coverage:
 | editor-selection-strategy.ts | 100% |
 | preview-selection-strategy.ts | 100% |
 | view-manager.ts | 100% |
+| terminal-process.ts | 83.84% |
 
 **Note on mcp-server.ts (88.53%):** Uncovered lines (468-473, 502-503) are defensive
 code paths that cannot be triggered with current timing constants (ping timeout=3s,
 ping interval=5s). The close event already stops keepalive, so the interval
 never detects zero clients.
+
+**Note on terminal-process.ts (83.84%):** Uncovered lines are the Windows-specific
+setTimeout auto-launch code (lines 148-152) and the `connectTerminalToProcess`
+helper function (lines 189-214) which requires xterm.js mocking.
 
 ## Running Tests
 
