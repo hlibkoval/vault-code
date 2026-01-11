@@ -59,12 +59,24 @@ export class SelectionTracker {
 	}
 
 	/**
-	 * Notify that selection may have changed (e.g., after MCP initialization).
+	 * Reset cached state and send current selection.
+	 * @param immediate - If true, send immediately. If false, delay 500ms for new client readiness.
 	 */
-	notifySelectionChanged(): void {
-		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (view) {
-			this.handleSelectionChange(view, view.file);
+	notifySelectionChanged(immediate = false): void {
+		const send = () => {
+			this.lastFilePath = null;
+			this.lastSelection = null;
+
+			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+			if (view) {
+				this.handleSelectionChange(view, view.file);
+			}
+		};
+
+		if (immediate) {
+			send();
+		} else {
+			setTimeout(send, 500);
 		}
 	}
 
