@@ -1,29 +1,57 @@
-import { Plugin } from "obsidian";
-import * as path from "path";
-import * as fs from "fs";
-import { TerminalView, VIEW_TYPE } from "./terminal-view";
+import {Editor, Plugin, TFile} from "obsidian";
+import {TerminalView, VIEW_TYPE} from "./view/terminal-view";
+import {ViewManager} from "./view/view-manager";
+import {MCPIntegration} from "./mcp/mcp-integration";
+import {SelectionTracker} from "./mcp/selection";
+import {createAtMentionedNotification, toFileUri} from "./mcp/mcp-notifications";
+import {loadNerdFont, unloadNerdFont} from "./resources/font-loader";
+import {IVaultContext} from "./interfaces";
+import {registerLineMarkerProcessor} from "./mcp/line-marker-processor";
+import {DEFAULT_SETTINGS, VaultCodeSettingTab, VaultCodeSettings} from "./settings";
 
-export default class VaultCodePlugin extends Plugin {
+export default class VaultCodePlugin extends Plugin implements IVaultContext {
+	settings!: VaultCodeSettings;
+	private mcpIntegration: MCPIntegration | null = null;
+	private viewManager!: ViewManager;
+	private selectionTracker: SelectionTracker | null = null;
+
 	async onload(): Promise<void> {
-		await this.loadNerdFont();
+		// Load settings first
+		await this.loadSettings();
+		this.addSettingTab(new VaultCodeSettingTab(this.app, this));
+
+		const basePath = (this.app.vault.adapter as { basePath?: string })?.basePath;
+		await loadNerdFont(this.manifest?.dir, basePath);
 
 		this.registerView(VIEW_TYPE, (leaf) => new TerminalView(leaf, this));
+		this.viewManager = new ViewManager(this.app.workspace);
+
+		// Register line marker processor (checks enabled flag internally)
+		registerLineMarkerProcessor(this, () => this.settings.mcpEnabled);
+
+		// Gate MCP initialization
+		if (this.settings.mcpEnabled) {
+			console.debug("[Vault Code] MCP integration enabled, starting server");
+			await this.startMCPServer();
+		} else {
+			console.debug("[Vault Code] MCP integration disabled");
+		}
 
 		// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude is a brand name
-		this.addRibbonIcon("bot", "Open Claude", () => void this.activateView());
+		this.addRibbonIcon("bot", "Open Claude", () => void this.viewManager.activateView());
 
 		this.addCommand({
 			id: "open-claude",
 			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude is a brand name
 			name: "Open Claude code",
-			callback: () => void this.activateView(),
+			callback: () => void this.viewManager.activateView(),
 		});
 
 		this.addCommand({
 			id: "new-claude-tab",
 			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude is a brand name
 			name: "New Claude tab",
-			callback: () => void this.createNewTab(),
+			callback: () => void this.viewManager.createNewTab(),
 		});
 
 		this.addCommand({
@@ -44,69 +72,75 @@ export default class VaultCodePlugin extends Plugin {
 			id: "toggle-claude-focus",
 			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude is a brand name
 			name: "Toggle focus: Editor ↔ Claude",
-			callback: () => void this.toggleFocus(),
+			callback: () => void this.viewManager.toggleFocus(),
 		});
-	}
 
-	private async toggleFocus(): Promise<void> {
-		const activeView = this.app.workspace.getActiveViewOfType(TerminalView);
-		if (activeView) {
-			// Currently in Claude, go to editor
-			const leaves = this.app.workspace.getLeavesOfType("markdown");
-			const firstLeaf = leaves[0];
-			if (firstLeaf) {
-				this.app.workspace.setActiveLeaf(firstLeaf, { focus: true });
-			}
-		} else {
-			// Currently in editor, go to Claude
-			const claudeLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
-			const firstClaudeLeaf = claudeLeaves[0];
-			if (firstClaudeLeaf) {
-				this.app.workspace.setActiveLeaf(firstClaudeLeaf, { focus: true });
-				// Focus the terminal
-				const view = firstClaudeLeaf.view;
-				if (view instanceof TerminalView) {
-					view.focusTerminal();
-				}
-			}
+		this.addCommand({
+			id: "send-to-claude",
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude is a brand name
+			name: "Send to Claude Code",
+			editorCallback: (editor, ctx) => this.sendToClaudeCode(editor, ctx.file),
+		});
+
+		// Start selection tracking (only if MCP is enabled)
+		if (this.settings.mcpEnabled) {
+			this.startSelectionTracking();
 		}
 	}
 
 	onunload(): void {
-		// Don't detach leaves - Obsidian manages leaf lifecycle during plugin updates
+		// Stop selection tracking
+		this.selectionTracker?.stop();
+		this.selectionTracker = null;
+
+		// Stop MCP server
+		this.mcpIntegration?.stop();
+		this.mcpIntegration = null;
+
 		// Remove injected font style
-		const fontStyle = document.getElementById("nerd-font-style");
-		if (fontStyle) fontStyle.remove();
+		unloadNerdFont();
 	}
 
-	private async loadNerdFont(): Promise<void> {
-		try {
-			const pluginDir = this.manifest?.dir;
-			const basePath = (this.app.vault.adapter as { basePath?: string })?.basePath;
-			if (!pluginDir || !basePath) return;
-
-			const fontPath = path.join(basePath, pluginDir, "symbols-nerd-font.woff2");
-			if (!fs.existsSync(fontPath)) return;
-
-			const fontData = fs.readFileSync(fontPath);
-			const fontB64 = fontData.toString("base64");
-
-			// eslint-disable-next-line obsidianmd/no-forbidden-elements -- Required for dynamic font loading
-			const style = document.createElement("style");
-			style.id = "nerd-font-style";
-			style.textContent = `
-				@font-face {
-					font-family: 'Symbols Nerd Font Mono';
-					src: url(data:font/woff2;base64,${fontB64}) format('woff2');
-					font-weight: normal;
-					font-style: normal;
-					font-display: swap;
-				}
-			`;
-			document.head.appendChild(style);
-		} catch {
-			// Font loading is optional - terminal works without it
+	/**
+	 * Start the MCP server for Claude Code integration.
+	 */
+	private async startMCPServer(): Promise<void> {
+		const vaultPath = this.getVaultPath();
+		if (!vaultPath) {
+			return;
 		}
+
+		this.mcpIntegration = new MCPIntegration({
+			vaultPath,
+			onInitialized: () => {
+				// Notify selection tracker when MCP is initialized
+				this.selectionTracker?.notifySelectionChanged();
+			},
+		});
+
+		await this.mcpIntegration.start();
+	}
+
+	/**
+	 * Start tracking selection changes.
+	 */
+	private startSelectionTracking(): void {
+		if (!this.mcpIntegration) {
+			return;
+		}
+
+		this.selectionTracker = new SelectionTracker({
+			app: this.app,
+			vaultContext: this,
+			notificationSender: this.mcpIntegration,
+		});
+
+		this.selectionTracker.start();
+
+		// Register cleanup
+		this.register(() => {
+			this.selectionTracker?.stop();
+		});
 	}
 
 	getVaultPath(): string {
@@ -114,21 +148,54 @@ export default class VaultCodePlugin extends Plugin {
 		return adapter.basePath || "";
 	}
 
-	private async activateView(): Promise<void> {
-		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE);
-		const existingLeaf = leaves[0];
-		if (existingLeaf) {
-			await this.app.workspace.revealLeaf(existingLeaf);
+	/**
+	 * Send selected text to Claude Code via @-mention notification.
+	 */
+	private sendToClaudeCode(editor: Editor, file: TFile | null): void {
+		if (!this.mcpIntegration || !file) {
 			return;
 		}
-		await this.createNewTab();
+
+		const selection = editor.listSelections()[0];
+		if (!selection) {
+			return;
+		}
+
+		const startLine = Math.min(selection.anchor.line, selection.head.line);
+		const endLine = Math.max(selection.anchor.line, selection.head.line);
+		const fileUri = toFileUri(this.getVaultPath(), file.path);
+
+		this.mcpIntegration.sendNotification(
+			createAtMentionedNotification(fileUri, startLine, endLine)
+		);
+
+		this.viewManager.focusTerminal();
 	}
 
-	private async createNewTab(): Promise<void> {
-		const leaf = this.app.workspace.getRightLeaf(false);
-		if (leaf) {
-			await leaf.setViewState({ type: VIEW_TYPE, active: true });
-			await this.app.workspace.revealLeaf(leaf);
+	async loadSettings(): Promise<void> {
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<VaultCodeSettings>);
+	}
+
+	async saveSettings(): Promise<void> {
+		await this.saveData(this.settings);
+	}
+
+	/**
+	 * Apply MCP setting change at runtime.
+	 */
+	async applyMcpSetting(enabled: boolean): Promise<void> {
+		if (enabled) {
+			if (!this.mcpIntegration) {
+				console.debug("[Vault Code] Starting MCP integration");
+				await this.startMCPServer();
+				this.startSelectionTracking();
+			}
+		} else {
+			console.debug("[Vault Code] Stopping MCP integration");
+			this.selectionTracker?.stop();
+			this.selectionTracker = null;
+			this.mcpIntegration?.stop();
+			this.mcpIntegration = null;
 		}
 	}
 }

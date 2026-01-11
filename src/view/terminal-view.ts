@@ -1,10 +1,11 @@
 import { ItemView, Scope, WorkspaceLeaf } from "obsidian";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { getThemeColors } from "./xterm-theme";
-import { injectXtermCSS } from "./xterm-css";
-import { TerminalProcess, connectTerminalToProcess } from "./terminal-process";
-import type VaultCodePlugin from "./main";
+import { getThemeColors } from "../theme/xterm-theme";
+import { injectXtermCSS } from "../theme/xterm-css";
+import { TerminalProcess, connectTerminalToProcess } from "../terminal/terminal-process";
+import { ScrollPositionManager } from "./scroll-position-manager";
+import type VaultCodePlugin from "../main";
 
 export const VIEW_TYPE = "vault-terminal";
 
@@ -18,10 +19,7 @@ export class TerminalView extends ItemView {
 	private escapeScope: Scope | null = null;
 	private fitTimeout: ReturnType<typeof setTimeout> | null = null;
 	private plugin: VaultCodePlugin;
-	// Scroll position tracking for mitigating Ink TUI scroll-to-top bug
-	private lastStableScrollPos = 0;
-	private scrollRestoreTimeout: ReturnType<typeof setTimeout> | null = null;
-	private scrollLockUntil = 0; // Timestamp until which we ignore position updates
+	private scrollManager = new ScrollPositionManager();
 
 	constructor(leaf: WorkspaceLeaf, plugin: VaultCodePlugin) {
 		super(leaf);
@@ -143,31 +141,7 @@ export class TerminalView extends ItemView {
 		this.registerEvent(this.app.workspace.on("layout-change", () => this.debouncedFit()));
 
 		// Mitigate Ink TUI scroll-to-top bug (Claude Code issue #826)
-		// When Ink redraws, it can cause the terminal to jump to the top.
-		// We detect suspicious jumps and restore the previous scroll position.
-		this.term.onScroll((newPos) => {
-			const now = Date.now();
-			const THRESHOLD = 10; // Only act if we were scrolled down at least this much
-			const LOCK_DURATION = 200; // Ignore position updates for this long after restore
-			const RESTORE_DELAY = 50; // Wait for Ink to finish redrawing
-
-			// If we jumped to top from a significant scroll position, restore
-			if (newPos === 0 && this.lastStableScrollPos > THRESHOLD) {
-				// Schedule restore and lock position updates
-				if (this.scrollRestoreTimeout) {
-					clearTimeout(this.scrollRestoreTimeout);
-				}
-				this.scrollLockUntil = now + LOCK_DURATION;
-				const restorePos = this.lastStableScrollPos;
-				this.scrollRestoreTimeout = setTimeout(() => {
-					this.term?.scrollToLine(restorePos);
-					this.scrollRestoreTimeout = null;
-				}, RESTORE_DELAY);
-			} else if (newPos > 0 && now > this.scrollLockUntil) {
-				// Update stable position only when not locked (user scrolling normally)
-				this.lastStableScrollPos = newPos;
-			}
-		});
+		this.scrollManager.attach(this.term);
 	}
 
 	private updateTheme(): void {
@@ -263,10 +237,7 @@ export class TerminalView extends ItemView {
 			this.fitTimeout = null;
 		}
 
-		if (this.scrollRestoreTimeout) {
-			clearTimeout(this.scrollRestoreTimeout);
-			this.scrollRestoreTimeout = null;
-		}
+		this.scrollManager.dispose();
 
 		if (this.escapeScope) {
 			this.app.keymap.popScope(this.escapeScope);
