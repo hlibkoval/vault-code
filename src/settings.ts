@@ -50,6 +50,7 @@ export class VaultCodeSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Continue the last conversation")
+			// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude Code is a brand name
 			.setDesc("Pass --continue flag to the first started Claude Code, resuming the previous conversation.")
 			.addToggle((toggle) =>
 				toggle
