@@ -10,6 +10,7 @@ export interface TerminalProcessOptions {
 	cwd: string;
 	cols: number;
 	rows: number;
+	useIdeFlag: boolean;
 	onData: (data: string) => void;
 	onExit: (code: number | null, signal: string | null) => void;
 	onError: (err: Error) => void;
@@ -28,7 +29,7 @@ export class TerminalProcess {
 	start(options: TerminalProcessOptions): void {
 		this.stop();
 
-		const { cwd, cols, rows, onData, onExit, onError } = options;
+		const { cwd, cols, rows, useIdeFlag, onData, onExit, onError } = options;
 
 		const shell = this.isWindows
 			? process.env.COMSPEC || "cmd.exe"
@@ -45,9 +46,10 @@ export class TerminalProcess {
 
 		// Use 'python' on Windows (works with both python.org and Microsoft Store installs)
 		const cmd = this.isWindows ? "python" : "python3";
+		const claudeCmd = useIdeFlag ? "claude --ide" : "claude";
 		const args = this.isWindows
 			? [ptyPath, String(cols), String(rows), shell]
-			: [ptyPath, String(cols), String(rows), shell, "-lc", "claude --ide || true; exec $SHELL -i"];
+			: [ptyPath, String(cols), String(rows), shell, "-lc", `${claudeCmd} || true; exec $SHELL -i`];
 
 		// Get PATH from user's login shell (GUI apps don't inherit shell config)
 		const shellEnv: typeof process.env = { ...process.env, TERM: "xterm-256color" };
@@ -97,7 +99,7 @@ export class TerminalProcess {
 		// Windows still needs auto-launch since we can't use exec there
 		if (this.isWindows) {
 			setTimeout(() => {
-				this.write("claude --ide\r");
+				this.write(`${claudeCmd}\r`);
 			}, 1000);
 		}
 	}

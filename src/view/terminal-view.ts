@@ -203,6 +203,7 @@ export class TerminalView extends ItemView {
 			cwd,
 			cols,
 			rows,
+			useIdeFlag: this.plugin.settings.mcpEnabled,
 			onData: (data) => {
 				this.term?.write(data);
 			},
