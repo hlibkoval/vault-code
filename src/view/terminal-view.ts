@@ -31,7 +31,8 @@ export class TerminalView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return "Claude";
+		// eslint-disable-next-line obsidianmd/ui/sentence-case -- Claude Code is a brand name
+		return "Claude Code";
 	}
 
 	getIcon(): string {
