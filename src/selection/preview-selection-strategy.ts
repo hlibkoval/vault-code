@@ -1,4 +1,5 @@
-import {EditorPosition, MarkdownPreviewView, TFile} from "obsidian";
+import {MarkdownPreviewView, TFile} from "obsidian";
+import {createCodeRange} from "../mcp/mcp-notifications";
 import {SelectionStrategy, SelectionResult} from "./selection-strategy";
 import {LINE_END_ATTR, LINE_START_ATTR} from "../markdown/line-marker-processor";
 
@@ -19,7 +20,7 @@ type PositionInSource = {
  * Uses DOM line markers to map preview selection back to source positions.
  */
 export class PreviewSelectionStrategy extends SelectionStrategy {
-	extract(preview: MarkdownPreviewView, _file: TFile): SelectionResult | null {
+	extractSelection(preview: MarkdownPreviewView, _file: TFile): SelectionResult | null {
 		const selectionObj = this.getSelectionInElement(preview.containerEl);
 		const selectedText = selectionObj?.toString() || "";
 
@@ -33,7 +34,7 @@ export class PreviewSelectionStrategy extends SelectionStrategy {
 		}
 
 		return {
-			range: this.createRange(
+			range: createCodeRange(
 				position.startLine,
 				position.startChar,
 				position.endLine,
@@ -46,10 +47,6 @@ export class PreviewSelectionStrategy extends SelectionStrategy {
 	getSelectedText(preview: MarkdownPreviewView): string {
 		const selectionObj = this.getSelectionInElement(preview.containerEl);
 		return selectionObj?.toString() || "";
-	}
-
-	getCursor(_preview: MarkdownPreviewView): EditorPosition | null {
-		return null; // Preview mode doesn't have cursor tracking
 	}
 
 	/**

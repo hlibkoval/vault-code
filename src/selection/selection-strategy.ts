@@ -1,6 +1,10 @@
-import {EditorPosition, TFile} from "obsidian";
+import {Editor, MarkdownPreviewView, TFile} from "obsidian";
 import {CodeRange} from "../mcp/mcp-types";
-import {createCodeRange} from "../mcp/mcp-notifications";
+
+/**
+ * Supported view types for selection extraction.
+ */
+export type SelectionView = Editor | MarkdownPreviewView;
 
 /**
  * Result of extracting selection from a view.
@@ -27,27 +31,10 @@ export abstract class SelectionStrategy {
 	 * Extract current selection from the view.
 	 * Returns null if no selection exists.
 	 */
-	abstract extract(view: unknown, file: TFile): SelectionResult | null;
+	abstract extractSelection(view: SelectionView, file: TFile): SelectionResult | null;
 
 	/**
-	 * Get the selected text without full extraction (for deduplication checks).
+	 * Get the selected text (or empty string) without full extraction (for deduplication checks).
 	 */
-	abstract getSelectedText(view: unknown): string;
-
-	/**
-	 * Get cursor position for deduplication (null if not applicable).
-	 */
-	abstract getCursor(view: unknown): EditorPosition | null;
-
-	/**
-	 * Helper to create a CodeRange.
-	 */
-	protected createRange(
-		startLine: number,
-		startCol: number,
-		endLine: number,
-		endCol: number
-	): CodeRange {
-		return createCodeRange(startLine, startCol, endLine, endCol);
-	}
+	abstract getSelectedText(view: SelectionView): string;
 }

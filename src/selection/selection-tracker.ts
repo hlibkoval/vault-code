@@ -1,8 +1,8 @@
-import {App, EditorPosition, MarkdownView, TFile} from "obsidian";
+import {App, MarkdownView, TFile} from "obsidian";
 import {INotificationSender, IVaultContext} from "../interfaces";
 import {createSelectionChangedNotification} from "../mcp/mcp-notifications";
 import {toFileUri} from "../utils/uri-utils";
-import {EMPTY_RANGE, SelectionResult, SelectionStrategy} from "./selection-strategy";
+import {EMPTY_RANGE, SelectionResult, SelectionStrategy, SelectionView} from "./selection-strategy";
 import {EditorSelectionStrategy} from "./editor-selection-strategy";
 import {PreviewSelectionStrategy} from "./preview-selection-strategy";
 
@@ -27,7 +27,6 @@ export class SelectionTracker {
 
 	// Deduplication state
 	private lastSelection: string | null = null;
-	private lastCursor: EditorPosition | null = null;
 	private lastFilePath: string | null = null;
 	private pollInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -98,40 +97,27 @@ export class SelectionTracker {
 		}
 	}
 
-	private handleMode(strategy: SelectionStrategy, view: unknown, file: TFile): void {
+	private handleMode(strategy: SelectionStrategy, view: SelectionView, file: TFile): void {
 		const filePath = toFileUri(this.vaultContext.getVaultPath(), file.path);
 		const selectedText = strategy.getSelectedText(view);
-		const cursor = strategy.getCursor(view);
 
-		if (!this.hasContextChanged(filePath, cursor, selectedText)) {
+		if (!this.hasContextChanged(filePath, selectedText)) {
 			return;
 		}
 
-		this.updateState(filePath, cursor, selectedText);
-		const result = strategy.extract(view, file);
+		this.updateState(filePath, selectedText);
+		const result = strategy.extractSelection(view, file);
 		this.sendNotification(filePath, result);
 	}
 
-	private hasContextChanged(
-		filePath: string | null,
-		cursor: EditorPosition | null,
-		selection: string | null
-	): boolean {
+	private hasContextChanged(filePath: string | null, selection: string | null): boolean {
 		const fileChanged = filePath !== this.lastFilePath;
-		const cursorChanged =
-			cursor?.line !== this.lastCursor?.line || cursor?.ch !== this.lastCursor?.ch;
 		const selectionChanged = selection !== this.lastSelection;
-
-		return fileChanged || cursorChanged || selectionChanged;
+		return fileChanged || selectionChanged;
 	}
 
-	private updateState(
-		filePath: string | null,
-		cursor: EditorPosition | null,
-		selection: string | null
-	): void {
+	private updateState(filePath: string | null, selection: string | null): void {
 		this.lastFilePath = filePath;
-		this.lastCursor = cursor;
 		this.lastSelection = selection;
 	}
 

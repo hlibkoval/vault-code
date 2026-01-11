@@ -1,4 +1,5 @@
-import {Editor, EditorPosition, TFile} from "obsidian";
+import {Editor, TFile} from "obsidian";
+import {createCodeRange} from "../mcp/mcp-notifications";
 import {SelectionStrategy, SelectionResult} from "./selection-strategy";
 
 /**
@@ -6,7 +7,7 @@ import {SelectionStrategy, SelectionResult} from "./selection-strategy";
  * Uses Obsidian's Editor API to get cursor positions and selections.
  */
 export class EditorSelectionStrategy extends SelectionStrategy {
-	extract(editor: Editor, _file: TFile): SelectionResult | null {
+	extractSelection(editor: Editor, _file: TFile): SelectionResult | null {
 		const selection = editor.getSelection();
 		if (!selection) {
 			return null;
@@ -24,16 +25,12 @@ export class EditorSelectionStrategy extends SelectionStrategy {
 		const endCol = sel.anchor.line <= sel.head.line ? sel.head.ch : sel.anchor.ch;
 
 		return {
-			range: this.createRange(startLine, startCol, endLine, endCol),
+			range: createCodeRange(startLine, startCol, endLine, endCol),
 			selectedText: selection,
 		};
 	}
 
 	getSelectedText(editor: Editor): string {
-		return editor?.getSelection() || "";
-	}
-
-	getCursor(editor: Editor): EditorPosition | null {
-		return editor?.getCursor() || null;
+		return editor.getSelection();
 	}
 }
