@@ -6,9 +6,10 @@ Run [Claude Code](https://claude.com/claude-code) in your Obsidian sidebar.
 
 ## Features
 
-- **Embedded terminal** - Full terminal in your Obsidian sidebar
+- **Embedded terminal** – Full terminal in your Obsidian sidebar
 - **Auto-launches Claude** - Claude Code starts automatically
-- **Multiple tabs** - Run multiple Claude instances side by side
+- **Multiple tabs** – Run multiple Claude instances side by side
+- **Obsidian → Claude Code integration** (optional) – Claude Code gets the current context from Obsidian (open file, selected lines) automatically over `/ide` MCP integration (inspired by Claude Code plugin for Intellij IDEA) 
 
 ## Requirements
 
@@ -25,7 +26,7 @@ In your vault folder, run:
 curl -fsSL https://github.com/hlibkoval/vault-code/releases/latest/download/vault-code.tar.gz | tar -xzv -C .obsidian/plugins/
 ```
 
-Then in Obsidian: Settings → Community Plugins → Refresh → Enable "Vault Code"
+Then in Obsidian: Settings → Community Plugins → Enable "Vault Code"
 
 **Windows:** See [Windows Setup](#windows-setup-experimental) below.
 
