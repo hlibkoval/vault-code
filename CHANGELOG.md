@@ -2,6 +2,17 @@
 
 All notable changes to Vault Code will be documented in this file.
 
+## [0.1.0] - 2025-01-11
+
+### Added
+- MCP (Model Context Protocol) integration for Claude Code IDE protocol
+- WebSocket server sends `selection_changed` notifications to Claude Code CLI
+- Settings tab with toggle to enable/disable MCP integration
+- Selection tracking for both editor and reading view modes
+
+### Changed
+- Refactored codebase into modular domain-driven structure (`src/mcp/`, `src/terminal/`, `src/theme/`, `src/view/`)
+
 ## [0.0.4] - 2025-01-08
 
 ### Changed
