@@ -10,6 +10,7 @@ Run [Claude Code](https://claude.com/claude-code) in your Obsidian sidebar with 
 - **Auto-launches Claude** - Claude Code starts automatically
 - **Multiple tabs** – Run multiple Claude instances side by side
 - **Obsidian → Claude Code integration** (optional) – Claude Code gets the current context from Obsidian (open file, selected lines) automatically over `/ide` MCP integration (inspired by Claude Code plugin for Intellij IDEA) 
+- **Continue the last conversation** (optional) – continue working with Claude Code from where you left off automatically
 
 ## Requirements
 
