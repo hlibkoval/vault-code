@@ -2,12 +2,11 @@ import {Editor, Plugin, TFile} from "obsidian";
 import {TerminalView, VIEW_TYPE} from "./view/terminal-view";
 import {ViewManager} from "./view/view-manager";
 import {MCPIntegration} from "./mcp/mcp-integration";
-import {SelectionTracker} from "./selection";
-import {createAtMentionedNotification} from "./mcp/mcp-notifications";
-import {toFileUri} from "./utils/uri-utils";
+import {SelectionTracker} from "./mcp/selection";
+import {createAtMentionedNotification, toFileUri} from "./mcp/mcp-notifications";
 import {loadNerdFont, unloadNerdFont} from "./resources/font-loader";
 import {IVaultContext} from "./interfaces";
-import {registerLineMarkerProcessor} from "./markdown/line-marker-processor";
+import {registerLineMarkerProcessor} from "./mcp/line-marker-processor";
 
 export default class VaultCodePlugin extends Plugin implements IVaultContext {
 	private mcpIntegration: MCPIntegration | null = null;

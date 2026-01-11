@@ -1,5 +1,5 @@
 import {Editor, TFile} from "obsidian";
-import {createCodeRange} from "../mcp/mcp-notifications";
+import {createCodeRange} from "../mcp-notifications";
 import {SelectionStrategy, SelectionResult} from "./selection-strategy";
 
 /**

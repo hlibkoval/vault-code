@@ -1,7 +1,7 @@
 import {MarkdownPreviewView, TFile} from "obsidian";
-import {createCodeRange} from "../mcp/mcp-notifications";
+import {createCodeRange} from "../mcp-notifications";
 import {SelectionStrategy, SelectionResult} from "./selection-strategy";
-import {LINE_END_ATTR, LINE_START_ATTR} from "../markdown/line-marker-processor";
+import {LINE_END_ATTR, LINE_START_ATTR} from "../line-marker-processor";
 
 interface LineMarker {
 	lineStart: number;

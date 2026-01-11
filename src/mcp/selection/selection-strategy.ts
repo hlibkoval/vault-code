@@ -1,5 +1,5 @@
 import {Editor, MarkdownPreviewView, TFile} from "obsidian";
-import {CodeRange} from "../mcp/mcp-types";
+import {CodeRange} from "../mcp-types";
 
 /**
  * Supported view types for selection extraction.

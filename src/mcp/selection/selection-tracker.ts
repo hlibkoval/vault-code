@@ -1,7 +1,6 @@
 import {App, MarkdownView, TFile} from "obsidian";
-import {INotificationSender, IVaultContext} from "../interfaces";
-import {createSelectionChangedNotification} from "../mcp/mcp-notifications";
-import {toFileUri} from "../utils/uri-utils";
+import {INotificationSender, IVaultContext} from "../../interfaces";
+import {createSelectionChangedNotification, toFileUri} from "../mcp-notifications";
 import {EMPTY_RANGE, SelectionResult, SelectionStrategy, SelectionView} from "./selection-strategy";
 import {EditorSelectionStrategy} from "./editor-selection-strategy";
 import {PreviewSelectionStrategy} from "./preview-selection-strategy";
