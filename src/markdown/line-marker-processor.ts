@@ -7,7 +7,7 @@ export const LINE_END_ATTR = "dvcle";
 
 /**
  * Registers a markdown post processor that adds line number attributes
- * to rendered block elements. This enables PreviewSelectionExtractor
+ * to rendered block elements. This enables PreviewSelectionStrategy
  * to map DOM selections back to source line numbers.
  */
 export function registerLineMarkerProcessor(plugin: Plugin): void {
