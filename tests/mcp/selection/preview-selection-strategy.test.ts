@@ -175,6 +175,41 @@ describe("PreviewSelectionStrategy", () => {
 			expect(result).not.toBeNull();
 			expect(result?.range.start.line).toBe(0);
 		});
+
+		it("should handle selection with trailing empty lines", () => {
+			// Create content with multiple lines where trailing lines are empty
+			const p = createMarkedParagraph("Line 1\n\n", 0, 2);
+			containerEl.appendChild(p);
+
+			// Select the whole content including trailing newlines
+			createSelection(p.firstChild!, 0, p.firstChild!, 8);
+
+			const preview = createMockPreviewView(containerEl);
+			const file = createMockTFile("test.md");
+
+			const result = strategy.extractSelection(preview, file);
+
+			expect(result).not.toBeNull();
+			// Empty lines at the end should be dropped
+			expect(result?.range.start.line).toBe(0);
+		});
+
+		it("should handle selection starting at element node", () => {
+			const p = createMarkedParagraph("Hello world", 5, 5);
+			containerEl.appendChild(p);
+
+			// Select starting from the element itself (not the text node)
+			// This triggers the node.nodeType === Node.ELEMENT_NODE branch
+			createSelection(p, 0, p.firstChild!, 5);
+
+			const preview = createMockPreviewView(containerEl);
+			const file = createMockTFile("test.md");
+
+			const result = strategy.extractSelection(preview, file);
+
+			expect(result).not.toBeNull();
+			expect(result?.range.start.line).toBe(5);
+		});
 	});
 
 	describe("getSelectedText", () => {

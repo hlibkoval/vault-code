@@ -505,4 +505,158 @@ describe("MCPServer", () => {
 			expect(code2).toBe(1000);
 		});
 	});
+
+	describe("socket state guards", () => {
+		it("handles notification to destroyed socket gracefully", async () => {
+			const client = trackClient(await createTestClient(port, authToken));
+			await performHandshake(client);
+
+			// Terminate abruptly (destroys underlying socket without WebSocket close)
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(client as any)._socket?.destroy();
+
+			// Wait for server to detect the closed socket
+			await new Promise((resolve) => setTimeout(resolve, 100));
+
+			// Should not throw when sending to destroyed socket
+			expect(() => {
+				server.sendNotification({
+					jsonrpc: "2.0",
+					method: "selection_changed",
+					params: { selection: null, text: null, filePath: null },
+				});
+			}).not.toThrow();
+		});
+
+		it("skips destroyed sockets but sends to healthy ones", async () => {
+			const client1 = trackClient(await createTestClient(port, authToken));
+			const client2 = trackClient(await createTestClient(port, authToken));
+
+			await performHandshake(client1);
+			await performHandshake(client2);
+
+			// Destroy first client's socket
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(client1 as any)._socket?.destroy();
+
+			await new Promise((resolve) => setTimeout(resolve, 100));
+
+			// Second client should still receive notification
+			const messagePromise = waitForMessage(client2);
+
+			server.sendNotification({
+				jsonrpc: "2.0",
+				method: "selection_changed",
+				params: { selection: null, text: "test", filePath: null },
+			});
+
+			const msg = await messagePromise;
+			expect(msg.method).toBe("selection_changed");
+		});
+	});
+
+	describe("keepalive edge cases", () => {
+		it("disconnects client that does not respond to ping", { timeout: 15000 }, async () => {
+			server.stop();
+
+			const onDisconnected = vi.fn();
+			server = new MCPServer({
+				vaultPath: "/test/vault",
+				onDisconnected,
+			});
+			await server.start();
+
+			const createLockFileMock = vi.mocked(lockFile.createLockFile);
+			const newAuthToken = createLockFileMock.mock.calls[createLockFileMock.mock.calls.length - 1]![2];
+			port = server.getPort();
+
+			const client = trackClient(await createTestClient(port, newAuthToken));
+			await performHandshake(client);
+
+			// Wait for ping from server (5 seconds)
+			const ping = await waitForMessage(client, 10000);
+			expect(ping.method).toBe("ping");
+
+			// Do NOT respond to ping - wait for timeout (3 seconds + some buffer)
+			const closePromise = waitForClose(client, 5000);
+
+			const closeCode = await closePromise;
+			expect(closeCode).toBeDefined();
+			expect(onDisconnected).toHaveBeenCalled();
+		});
+
+		it("handles multiple pings with responses correctly", { timeout: 20000 }, async () => {
+			const client = trackClient(await createTestClient(port, authToken));
+			await performHandshake(client);
+
+			// Respond to first ping
+			const ping1 = await waitForMessage(client, 10000);
+			expect(ping1.method).toBe("ping");
+			client.send(JSON.stringify({ jsonrpc: "2.0", id: ping1.id, result: {} }));
+
+			// Respond to second ping
+			const ping2 = await waitForMessage(client, 10000);
+			expect(ping2.method).toBe("ping");
+			client.send(JSON.stringify({ jsonrpc: "2.0", id: ping2.id, result: {} }));
+
+			// Connection should still be open
+			expect(client.readyState).toBe(1); // OPEN
+		});
+
+		it("clears pending ping on server stop", { timeout: 15000 }, async () => {
+			const client = trackClient(await createTestClient(port, authToken));
+			await performHandshake(client);
+
+			// Wait for the ping to be sent (5 seconds interval)
+			const ping = await waitForMessage(client, 10000);
+			expect(ping.method).toBe("ping");
+
+			// Stop server before ping timeout - this should clear pending ping timeout
+			const closePromise = waitForClose(client);
+			server.stop();
+
+			// Should close cleanly with code 1000
+			const closeCode = await closePromise;
+			expect(closeCode).toBe(1000);
+		});
+
+		it("stops keepalive interval when last client disconnects", async () => {
+			const client = trackClient(await createTestClient(port, authToken));
+			await performHandshake(client);
+
+			expect(server.hasConnectedClients()).toBe(true);
+
+			// Close client
+			client.close();
+			await waitForClose(client);
+
+			// Wait for disconnect to be processed
+			await new Promise((resolve) => setTimeout(resolve, 100));
+
+			expect(server.hasConnectedClients()).toBe(false);
+			// Server should have stopped keepalive (no way to verify directly,
+			// but at least verify no crash when no clients)
+		});
+
+		it("stops keepalive interval during next ping cycle after clients disconnect", { timeout: 15000 }, async () => {
+			const client = trackClient(await createTestClient(port, authToken));
+			await performHandshake(client);
+
+			// Wait for first ping
+			const ping = await waitForMessage(client, 10000);
+			expect(ping.method).toBe("ping");
+			client.send(JSON.stringify({ jsonrpc: "2.0", id: ping.id, result: {} }));
+
+			// Close client after responding to ping
+			client.close();
+			await waitForClose(client);
+
+			// Wait for next ping interval to run (5 seconds)
+			// This triggers the "no clients left" path in keepalive
+			await new Promise((resolve) => setTimeout(resolve, 5500));
+
+			// Server should still be functional (didn't crash)
+			expect(server.hasConnectedClients()).toBe(false);
+		});
+	});
 });

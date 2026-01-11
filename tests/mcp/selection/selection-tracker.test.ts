@@ -284,6 +284,20 @@ describe("SelectionTracker", () => {
 
 			expect(mockNotificationSender.sendNotification).not.toHaveBeenCalled();
 		});
+
+		it("should not send if view has no file", () => {
+			mockView = createMockMarkdownView({file: null});
+			mockApp = createMockApp(mockView);
+			tracker = new SelectionTracker({
+				app: mockApp,
+				notificationSender: mockNotificationSender,
+				vaultContext: mockVaultContext,
+			});
+
+			tracker.notifySelectionChanged(true);
+
+			expect(mockNotificationSender.sendNotification).not.toHaveBeenCalled();
+		});
 	});
 
 	describe("pollSelectionChange", () => {

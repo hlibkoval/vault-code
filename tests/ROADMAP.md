@@ -164,11 +164,11 @@ These modules are explicitly excluded from test coverage:
 | Metric | Value |
 |--------|-------|
 | Test Files | 11 |
-| Tests | 210 |
-| Statements | 92.04% |
-| Branches | 92.36% |
+| Tests | 221 |
+| Statements | 94.11% |
+| Branches | 95.23% |
 | Functions | 98.43% |
-| Lines | 92.04% |
+| Lines | 94.11% |
 
 ### Coverage by Module
 
@@ -176,15 +176,20 @@ These modules are explicitly excluded from test coverage:
 |--------|----------|
 | ws-frames.ts | 100% |
 | mcp-notifications.ts | 100% |
-| mcp-lock-file.ts | 96.47% |
-| mcp-server.ts | 84.52% |
+| mcp-lock-file.ts | 97.64% |
+| mcp-server.ts | 88.53% |
 | mcp-integration.ts | 100% |
-| selection-tracker.ts | 97.77% |
+| selection-tracker.ts | 100% |
 | xterm-theme.ts | 100% |
 | scroll-position-manager.ts | 100% |
 | editor-selection-strategy.ts | 100% |
-| preview-selection-strategy.ts | 97.67% |
+| preview-selection-strategy.ts | 100% |
 | view-manager.ts | 100% |
+
+**Note on mcp-server.ts (88.53%):** Uncovered lines (468-473, 502-503) are defensive
+code paths that cannot be triggered with current timing constants (ping timeout=3s,
+ping interval=5s). The close event already stops keepalive, so the interval
+never detects zero clients.
 
 ## Running Tests
 

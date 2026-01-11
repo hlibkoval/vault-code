@@ -264,5 +264,14 @@ describe("mcp-lock-file", () => {
 			expect(() => cleanupStaleLockFiles("/vault")).not.toThrow();
 			expect(fs.unlinkSync).not.toHaveBeenCalled();
 		});
+
+		it("should handle readdirSync errors gracefully", () => {
+			vi.mocked(fs.existsSync).mockReturnValue(true);
+			vi.mocked(fs.readdirSync).mockImplementation(() => {
+				throw new Error("EACCES: permission denied");
+			});
+
+			expect(() => cleanupStaleLockFiles("/vault")).not.toThrow();
+		});
 	});
 });
