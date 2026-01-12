@@ -14,6 +14,8 @@ export const DEFAULT_SETTINGS: VaultCodeSettings = {
 
 export class VaultCodeSettingTab extends PluginSettingTab {
 	plugin: VaultCodePlugin;
+	icon: string = "bot";
+
 	private hintEl: HTMLElement | null = null;
 
 	constructor(app: App, plugin: VaultCodePlugin) {
