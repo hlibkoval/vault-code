@@ -2,6 +2,14 @@
 
 All notable changes to Vault Code will be documented in this file.
 
+## [0.2.1] - 2025-01-12
+
+### Added
+- Settings tab icon for Obsidian 1.9+ compatibility
+
+### Fixed
+- "Send to Claude Code" context menu action now works on directories
+
 ## [0.2.0] - 2025-01-12
 
 ### Added
