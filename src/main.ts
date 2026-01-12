@@ -214,7 +214,7 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 	 * Send entire file to Claude Code via @-mention notification.
 	 */
 	private sendFileToClaudeCode(file: TAbstractFile): void {
-		if (!this.mcpIntegration || !(file instanceof TFile)) {
+		if (!this.mcpIntegration) {
 			return;
 		}
 
