@@ -225,6 +225,24 @@ export default class VaultCodePlugin extends Plugin implements IVaultContext {
 		this.viewManager.focusTerminal();
 	}
 
+	/**
+	 * Send a file path to Claude Code via MCP @-mention notification.
+	 * Used by drag-and-drop handler for MCP integration.
+	 * @param absolutePath - Absolute file path to send
+	 * @returns true if MCP is enabled and notification was sent, false otherwise
+	 */
+	sendPathToClaudeCode(absolutePath: string): boolean {
+		if (!this.mcpIntegration) {
+			return false;
+		}
+
+		this.mcpIntegration.sendNotification(
+			createAtMentionedNotification(this.formatFilePath(absolutePath), null, null)
+		);
+
+		return true;
+	}
+
 	async loadSettings(): Promise<void> {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<VaultCodeSettings>);
 	}
