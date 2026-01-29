@@ -4,7 +4,6 @@ import { FitAddon } from "@xterm/addon-fit";
 import { getThemeColors } from "../theme/xterm-theme";
 import { injectXtermCSS } from "../theme/xterm-css";
 import { TerminalProcess, connectTerminalToProcess, ClaudeCommandOptions } from "../terminal/terminal-process";
-import { ScrollPositionManager } from "./scroll-position-manager";
 import type VaultCodePlugin from "../main";
 
 export const VIEW_TYPE = "vault-terminal";
@@ -19,7 +18,6 @@ export class TerminalView extends ItemView {
 	private escapeScope: Scope | null = null;
 	private fitTimeout: ReturnType<typeof setTimeout> | null = null;
 	private plugin: VaultCodePlugin;
-	private scrollManager = new ScrollPositionManager();
 
 	constructor(leaf: WorkspaceLeaf, plugin: VaultCodePlugin) {
 		super(leaf);
@@ -140,9 +138,6 @@ export class TerminalView extends ItemView {
 
 		// Watch for Obsidian layout changes (sidebar resize, etc.)
 		this.registerEvent(this.app.workspace.on("layout-change", () => this.debouncedFit()));
-
-		// Mitigate Ink TUI scroll-to-top bug (Claude Code issue #826)
-		this.scrollManager.attach(this.term);
 	}
 
 	private updateTheme(): void {
@@ -249,8 +244,6 @@ export class TerminalView extends ItemView {
 			clearTimeout(this.fitTimeout);
 			this.fitTimeout = null;
 		}
-
-		this.scrollManager.dispose();
 
 		if (this.escapeScope) {
 			this.app.keymap.popScope(this.escapeScope);
