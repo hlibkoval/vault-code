@@ -2,6 +2,11 @@
 
 All notable changes to Vault Code will be documented in this file.
 
+## [0.2.2] - 2026-01-29
+
+### Removed
+- Scroll position workaround for Claude Code issue #826 (fixed upstream)
+
 ## [0.2.1] - 2025-01-12
 
 ### Added
