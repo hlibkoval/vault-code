@@ -8,6 +8,37 @@ import fcntl
 import termios
 import select
 import signal
+import time
+
+# Global to track child PID (also the process group ID) for signal handler
+child_pid = None
+
+def kill_process_group(pgid, sig):
+    """Kill an entire process group."""
+    try:
+        os.killpg(pgid, sig)
+    except (ProcessLookupError, PermissionError, OSError):
+        pass
+
+def cleanup_child(signum, frame):
+    """Kill the entire process group when we receive a signal."""
+    global child_pid
+    if child_pid:
+        # Kill entire process group (child is group leader)
+        kill_process_group(child_pid, signal.SIGTERM)
+        # Give processes a moment to exit gracefully
+        for _ in range(10):
+            try:
+                pid, _ = os.waitpid(-child_pid, os.WNOHANG)
+                if pid != 0:
+                    break
+            except ChildProcessError:
+                break
+            time.sleep(0.1)
+        else:
+            # Force kill the entire group if still running
+            kill_process_group(child_pid, signal.SIGKILL)
+    sys.exit(0)
 
 def set_size(fd, cols, rows):
     """Set the PTY window size."""
@@ -15,6 +46,8 @@ def set_size(fd, cols, rows):
     fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
 
 def main():
+    global child_pid
+
     # Parse args: terminal_pty.py [cols] [rows] [shell] [shell_args...]
     if len(sys.argv) < 4:
         print(f"Usage: {sys.argv[0]} cols rows shell [args...]", file=sys.stderr)
@@ -25,10 +58,17 @@ def main():
     shell = sys.argv[3]
     shell_args = sys.argv[3:]  # Include shell as argv[0]
 
+    # Register signal handlers for cleanup
+    signal.signal(signal.SIGTERM, cleanup_child)
+    signal.signal(signal.SIGINT, cleanup_child)
+
     pid, fd = pty.fork()
+    child_pid = pid  # Store for signal handler
 
     if pid == 0:
-        # Child process - exec the shell
+        # Child process - create new process group so we can kill entire tree
+        os.setpgrp()
+        # exec the shell
         os.execvp(shell, shell_args)
         sys.exit(1)
 
@@ -97,6 +137,19 @@ def main():
                 break
     finally:
         fcntl.fcntl(stdin_fd, fcntl.F_SETFL, old_flags)
+        # Ensure entire process group is terminated when we exit
+        if child_pid:
+            kill_process_group(child_pid, signal.SIGTERM)
+            for _ in range(10):
+                try:
+                    wpid, _ = os.waitpid(-child_pid, os.WNOHANG)
+                    if wpid != 0:
+                        break
+                except ChildProcessError:
+                    break
+                time.sleep(0.1)
+            else:
+                kill_process_group(child_pid, signal.SIGKILL)
 
 if __name__ == '__main__':
     main()

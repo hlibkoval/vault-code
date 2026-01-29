@@ -18,6 +18,8 @@ export class TerminalView extends ItemView {
 	private escapeScope: Scope | null = null;
 	private fitTimeout: ReturnType<typeof setTimeout> | null = null;
 	private plugin: VaultCodePlugin;
+	private dragOverHandler: ((e: DragEvent) => void) | null = null;
+	private dropHandler: ((e: DragEvent) => void) | null = null;
 
 	constructor(leaf: WorkspaceLeaf, plugin: VaultCodePlugin) {
 		super(leaf);
@@ -138,6 +140,96 @@ export class TerminalView extends ItemView {
 
 		// Watch for Obsidian layout changes (sidebar resize, etc.)
 		this.registerEvent(this.app.workspace.on("layout-change", () => this.debouncedFit()));
+
+		// Handle file drag-and-drop
+		this.setupDragAndDrop();
+	}
+
+	private setupDragAndDrop(): void {
+		if (!this.termHost) return;
+
+		this.dragOverHandler = (e: DragEvent) => {
+			e.preventDefault();
+			if (e.dataTransfer) {
+				e.dataTransfer.dropEffect = "copy";
+			}
+		};
+
+		this.dropHandler = (e: DragEvent) => {
+			e.preventDefault();
+			if (!this.termProcess) return;
+
+			// Check for Obsidian internal file drag (obsidian:// URL)
+			const textData = e.dataTransfer?.getData("text/plain");
+			if (textData && textData.startsWith("obsidian://")) {
+				try {
+					const url = new URL(textData);
+					const filePath = url.searchParams.get("file");
+					if (filePath) {
+						const linkPath = decodeURIComponent(filePath);
+						// Obsidian URLs omit .md extension, resolve through metadataCache
+						const file = this.app.metadataCache.getFirstLinkpathDest(linkPath, "");
+						const relativePath = file?.path ?? linkPath;
+						// Use relative path for MCP (matches context menu behavior)
+						if (!this.plugin.sendPathToClaudeCode(relativePath)) {
+							this.writeAtMention(relativePath);
+						}
+						this.term?.focus();
+						return;
+					}
+				} catch {
+					// Failed to parse URL, try external file handling
+				}
+			}
+
+			// Handle external file drops
+			const files = e.dataTransfer?.files;
+			if (files && files.length > 0) {
+				// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
+				const { webUtils } = require("electron");
+				for (let i = 0; i < files.length; i++) {
+					// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+					const filePath: string = webUtils.getPathForFile(files[i]);
+					if (filePath) {
+						// External files use absolute path
+						if (!this.plugin.sendPathToClaudeCode(filePath)) {
+							this.writeAtMention(filePath);
+						}
+					}
+				}
+				this.term?.focus();
+				return;
+			}
+
+			// Handle plain text drops (no files, not obsidian://)
+			// Check if it's an Obsidian folder path (folders don't use obsidian:// URLs)
+			if (textData && !textData.startsWith("obsidian://")) {
+				const vaultItem = this.app.vault.getAbstractFileByPath(textData);
+				if (vaultItem) {
+					// Use relative path for MCP (matches context menu behavior)
+					if (!this.plugin.sendPathToClaudeCode(vaultItem.path)) {
+						this.writeAtMention(vaultItem.path);
+					}
+				} else {
+					// Plain text, not a vault path
+					this.termProcess.write(textData);
+				}
+				this.term?.focus();
+			}
+		};
+
+		this.termHost.addEventListener("dragover", this.dragOverHandler);
+		this.termHost.addEventListener("drop", this.dropHandler);
+	}
+
+	/**
+	 * Write @-mention syntax to terminal stdin.
+	 * Used as fallback when MCP integration is not available.
+	 */
+	private writeAtMention(filePath: string): void {
+		// Quote path if it contains spaces (Claude Code @-mention syntax)
+		const formattedPath = filePath.includes(" ") ? `@'${filePath}' ` : `@${filePath} `;
+		this.termProcess?.write(formattedPath);
 	}
 
 	private updateTheme(): void {
@@ -248,6 +340,17 @@ export class TerminalView extends ItemView {
 		if (this.escapeScope) {
 			this.app.keymap.popScope(this.escapeScope);
 			this.escapeScope = null;
+		}
+
+		if (this.termHost) {
+			if (this.dragOverHandler) {
+				this.termHost.removeEventListener("dragover", this.dragOverHandler);
+				this.dragOverHandler = null;
+			}
+			if (this.dropHandler) {
+				this.termHost.removeEventListener("drop", this.dropHandler);
+				this.dropHandler = null;
+			}
 		}
 
 		this.termProcess?.stop();
