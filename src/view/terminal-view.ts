@@ -170,11 +170,8 @@ export class TerminalView extends ItemView {
 						// Obsidian URLs omit .md extension, resolve through metadataCache
 						const file = this.app.metadataCache.getFirstLinkpathDest(linkPath, "");
 						const relativePath = file?.path ?? linkPath;
-						// FileSystemAdapter has getFullPath but it's not in the public API
-						// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-						const absolutePath: string = (this.app.vault.adapter as any).getFullPath(relativePath);
-						// MCP uses absolute path (CC resolves it), stdin fallback uses relative
-						if (!this.plugin.sendPathToClaudeCode(absolutePath)) {
+						// Use relative path for MCP (matches context menu behavior)
+						if (!this.plugin.sendPathToClaudeCode(relativePath)) {
 							this.writeAtMention(relativePath);
 						}
 						this.term?.focus();
@@ -194,7 +191,7 @@ export class TerminalView extends ItemView {
 					// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
 					const filePath: string = webUtils.getPathForFile(files[i]);
 					if (filePath) {
-						// Try MCP integration first, fallback to @-mention stdin
+						// External files use absolute path
 						if (!this.plugin.sendPathToClaudeCode(filePath)) {
 							this.writeAtMention(filePath);
 						}
@@ -205,8 +202,18 @@ export class TerminalView extends ItemView {
 			}
 
 			// Handle plain text drops (no files, not obsidian://)
+			// Check if it's an Obsidian folder path (folders don't use obsidian:// URLs)
 			if (textData && !textData.startsWith("obsidian://")) {
-				this.termProcess.write(textData);
+				const vaultItem = this.app.vault.getAbstractFileByPath(textData);
+				if (vaultItem) {
+					// Use relative path for MCP (matches context menu behavior)
+					if (!this.plugin.sendPathToClaudeCode(vaultItem.path)) {
+						this.writeAtMention(vaultItem.path);
+					}
+				} else {
+					// Plain text, not a vault path
+					this.termProcess.write(textData);
+				}
 				this.term?.focus();
 			}
 		};
