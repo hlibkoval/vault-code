@@ -2,6 +2,12 @@
 
 All notable changes to Vault Code will be documented in this file.
 
+## [0.2.3] - 2026-01-29
+
+### Added
+- Drag-and-drop file support: drop files and folders onto terminal to reference them
+- Process group cleanup: properly kills entire process tree when terminal closes
+
 ## [0.2.2] - 2026-01-29
 
 ### Removed
