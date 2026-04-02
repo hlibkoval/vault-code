@@ -93,7 +93,7 @@ export class TerminalProcess {
 
 		const args = this.isWindows
 			? [ptyPath, String(cols), String(rows), shell]
-			: [ptyPath, String(cols), String(rows), shell, "-lc", `${claudeCmd} || true; exec $SHELL -i`];
+			: [ptyPath, String(cols), String(rows), shell, "-lic", `${claudeCmd} || true; exec $SHELL -i`];
 
 		// Get PATH from user's login shell (GUI apps don't inherit shell config)
 		const shellEnv: typeof process.env = { ...this.deps.env, TERM: "xterm-256color" };

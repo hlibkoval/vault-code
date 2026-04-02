@@ -2,6 +2,11 @@
 
 All notable changes to Vault Code will be documented in this file.
 
+## [0.2.4] - 2026-04-02
+
+### Fixed
+- Shell environment variables now available to Claude Code when launched from Obsidian (use interactive login shell)
+
 ## [0.2.3] - 2026-01-29
 
 ### Added
