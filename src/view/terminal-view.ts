@@ -3,7 +3,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { getThemeColors } from "../theme/xterm-theme";
 import { injectXtermCSS } from "../theme/xterm-css";
-import { TerminalProcess, connectTerminalToProcess, ClaudeCommandOptions } from "../terminal/terminal-process";
+import { TerminalProcess, connectTerminalToProcess, ClaudeCommandOptions, parseEnvVars } from "../terminal/terminal-process";
 import type VaultCodePlugin from "../main";
 
 export const VIEW_TYPE = "vault-terminal";
@@ -297,11 +297,14 @@ export class TerminalView extends ItemView {
 
 		connectTerminalToProcess(this.term, this.termProcess);
 
+		const customEnv = parseEnvVars(this.plugin.settings.customEnvVars);
+
 		this.termProcess.start({
 			cwd,
 			cols,
 			rows,
 			claudeOptions,
+			customEnv,
 			onData: (data) => {
 				this.term?.write(data);
 			},

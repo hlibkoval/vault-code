@@ -42,6 +42,21 @@
 	scrollbar-gutter: stable;
 }
 
+/* Settings: env vars textarea */
+.vault-code-env-setting {
+	flex-direction: column;
+	align-items: flex-start;
+}
+
+.vault-code-env-setting .setting-item-control {
+	width: 100%;
+}
+
+.vault-code-env-textarea {
+	font-family: var(--font-monospace);
+	width: 100%;
+}
+
 /* Keep the hidden textarea from stealing layout/focus scroll */
 .vault-terminal-host .xterm .xterm-helper-textarea {
 	position: fixed !important;

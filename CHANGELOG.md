@@ -2,6 +2,11 @@
 
 All notable changes to Vault Code will be documented in this file.
 
+## [0.3.0] - 2026-04-02
+
+### Added
+- Custom environment variables setting: configure KEY=VALUE pairs passed to Claude Code process (useful for feature flags)
+
 ## [0.2.4] - 2026-04-02
 
 ### Fixed

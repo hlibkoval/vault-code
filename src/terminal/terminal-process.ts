@@ -16,6 +16,7 @@ export interface TerminalProcessOptions {
 	cols: number;
 	rows: number;
 	claudeOptions: ClaudeCommandOptions;
+	customEnv?: Record<string, string>;
 	onData: (data: string) => void;
 	onExit: (code: number | null, signal: string | null) => void;
 	onError: (err: Error) => void;
@@ -45,6 +46,24 @@ export const defaultDeps: TerminalProcessDeps = {
 	env: process.env,
 };
 
+/**
+ * Parse dotenv-style text into a key-value record.
+ * Skips empty lines and comments (lines starting with #).
+ */
+export function parseEnvVars(text: string): Record<string, string> {
+	const env: Record<string, string> = {};
+	for (const rawLine of text.split("\n")) {
+		const line = rawLine.trim();
+		if (!line || line.startsWith("#")) continue;
+		const eqIndex = line.indexOf("=");
+		if (eqIndex === -1) continue;
+		const key = line.slice(0, eqIndex).trim();
+		const value = line.slice(eqIndex + 1).trim();
+		if (key) env[key] = value;
+	}
+	return env;
+}
+
 export class TerminalProcess {
 	private proc: ChildProcess | null = null;
 	private stdoutDecoder: StringDecoder | null = null;
@@ -70,7 +89,7 @@ export class TerminalProcess {
 	start(options: TerminalProcessOptions): void {
 		this.stop();
 
-		const { cwd, cols, rows, claudeOptions, onData, onExit, onError } = options;
+		const { cwd, cols, rows, claudeOptions, customEnv, onData, onExit, onError } = options;
 
 		const shell = this.isWindows
 			? this.deps.env.COMSPEC || "cmd.exe"
@@ -111,6 +130,10 @@ export class TerminalProcess {
 			} catch {
 				// Fall back to process.env.PATH if shell init fails
 			}
+		}
+
+		if (customEnv) {
+			Object.assign(shellEnv, customEnv);
 		}
 
 		this.proc = this.deps.spawn(cmd, args, {
